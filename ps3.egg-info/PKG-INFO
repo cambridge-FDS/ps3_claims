@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: ps3
+Version: 0.0.post1+g2596844.d20241115
+Summary: Course material for Fundamentals of Data Science (Michaelmas 2024) at University of Cambridge
+Author: Adrian Ochs, Christian Roerig
+Author-email: adrian.ochs@gmail.com, christianroerig2391@gmail.com
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# Problem Set 3: Claims modelling exercise
+
+```
+mamba env create
+conda activate ps3
+
+pre-commit install
+pip install --no-build-isolation -e .
+```

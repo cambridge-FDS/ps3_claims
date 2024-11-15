@@ -22,4 +22,4 @@ dependencies:
   # ml
   - glum
   - lightgbm
-  - sklearn
+  - scikit-learn
