@@ -11,4 +11,33 @@ def test_winsorizer(lower_quantile, upper_quantile):
 
     X = np.random.normal(0, 1, 1000)
 
-    assert False
+    # Initialize the Winsorizer
+    winsorizer = Winsorizer(
+        lower_quantile=lower_quantile, 
+        upper_quantile=upper_quantile
+    )
+
+    # Fit the transformer 
+    winsorizer.fit(X)
+    
+    # Get the learned limits 
+    lower_limits = winsorizer.lower_quantile_
+    upper_limits = winsorizer.upper_quantile_
+
+    # Transform the data
+    X_transformed = winsorizer.transform(X)
+
+    # Assert that the transformation worked
+    
+    # Check that all transformed values are >= the learned lower limit
+    assert np.all(X_transformed >= lower_limits)
+    
+    # Check that all transformed values are <= the learned upper limit
+    assert np.all(X_transformed <= upper_limits)
+
+    # Assert that the correct limits were learned
+    expected_lower = np.quantile(X, lower_quantile, axis=0)
+    expected_upper = np.quantile(X, upper_quantile, axis=0)
+    
+    assert np.allclose(lower_limits, expected_lower)
+    assert np.allclose(upper_limits, expected_upper)

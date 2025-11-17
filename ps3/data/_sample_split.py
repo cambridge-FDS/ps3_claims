@@ -22,4 +22,14 @@ def create_sample_split(df, id_column, training_frac=0.8):
         Training data with sample column containing train/test split based on IDs.
     """
 
+    # Define the split threshold 
+    train_threshold = training_frac * 100
+
+    # Create a stable hash bin (0-99) for each ID
+    bins = df[id_column].apply(lambda x: 
+        int(hashlib.sha256(str(x).encode()).hexdigest()[:8], 16) % 100
+    )
+
+    # Assign 'train' or 'test'
+    df['sample'] = np.where(bins < train_threshold, 'train', 'test')
     return df

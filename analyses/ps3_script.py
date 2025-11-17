@@ -23,10 +23,11 @@ weight = df["Exposure"].values
 df["PurePremium"] = df["ClaimAmountCut"] / df["Exposure"]
 y = df["PurePremium"]
 # TODO: Why do you think, we divide by exposure here to arrive at our outcome variable?
-
+# It is so that the outcome is comparable accross different individuals with different exposures, hence the "PurePremium" column
+# now acts more like a rate than an absolute value. 
 
 # TODO: use your create_sample_split function here
-# df = create_sample_split(...)
+df = create_sample_split(df, "IDpol")
 train = np.where(df["sample"] == "train")
 test = np.where(df["sample"] == "test")
 df_train = df.iloc[train].copy()
@@ -86,15 +87,22 @@ print(
 
 # Let's put together a pipeline
 numeric_cols = ["BonusMalus", "Density"]
+numeric_transformer = Pipeline(steps=[
+    ('scaler', StandardScaler()),
+    ('spline', SplineTransformer(knots="quantile"))
+])
 preprocessor = ColumnTransformer(
     transformers=[
-        # TODO: Add numeric transforms here
+        # TODO
+        ("num", numeric_transformer, numeric_cols),
         ("cat", OneHotEncoder(sparse_output=False, drop="first"), categoricals),
     ]
 )
 preprocessor.set_output(transform="pandas")
-model_pipeline = Pipeline(
-    # TODO: Define pipeline steps here
+model_pipeline = Pipeline(steps=[
+    ("preprocessor", preprocessor),
+    ("model", GeneralizedLinearRegressor(family=TweedieDistribution(1.5), l1_ratio=1, fit_intercept=True))
+    ]
 )
 
 # let's have a look at the pipeline
@@ -103,7 +111,7 @@ model_pipeline
 # let's check that the transforms worked
 model_pipeline[:-1].fit_transform(df_train)
 
-model_pipeline.fit(df_train, y_train_t, estimate__sample_weight=w_train_t)
+model_pipeline.fit(df_train, y_train_t, model__sample_weight=w_train_t)
 
 pd.DataFrame(
     {
@@ -139,14 +147,25 @@ print(
 )
 
 # %%
-# TODO: Let's use a GBM instead as an estimator.
+# TODO: Let's use a LGBM instead as an estimator.
 # Steps
 # 1: Define the modelling pipeline. Tip: This can simply be a LGBMRegressor based on X_train_t from before.
 # 2. Make sure we are choosing the correct objective for our estimator.
 
-model_pipeline.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
-df_test["pp_t_lgbm"] = model_pipeline.predict(X_test_t)
-df_train["pp_t_lgbm"] = model_pipeline.predict(X_train_t)
+model_pipeline_LGBM = LGBMRegressor(
+    objective='tweedie',
+    tweedie_variance_power=1.5, # Same as our GLM's Tweedie(1.5)
+    n_estimators=200,           # Number of trees
+    learning_rate=0.05,         # Slows down learning to reduce overfitting
+    num_leaves=31,              # Default, controls complexity
+    max_depth=7,                # Controls tree depth to reduce overfitting
+    random_state=42,
+    n_jobs=-1
+)
+
+model_pipeline_LGBM.fit(X_train_t, y_train_t, sample_weight=w_train_t)
+df_test["pp_t_lgbm"] = model_pipeline_LGBM.predict(X_test_t)
+df_train["pp_t_lgbm"] = model_pipeline_LGBM.predict(X_train_t)
 print(
     "training loss t_lgbm:  {}".format(
         TweedieDist.deviance(y_train_t, df_train["pp_t_lgbm"], sample_weight=w_train_t)
@@ -170,10 +189,33 @@ print(
 # Note: Typically we tune many more parameters and larger grids,
 # but to save compute time here, we focus on getting the learning rate
 # and the number of estimators somewhat aligned -> tune learning_rate and n_estimators
-cv = GridSearchCV(
 
+lgbm_estimator = LGBMRegressor(
+    objective='tweedie',
+    tweedie_variance_power=1.5,
+    random_state=42,
+    n_jobs=-1
 )
-cv.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
+
+# Define the parameter grid to search
+# We tune learning_rate and n_estimators as requested
+param_grid = {
+    'learning_rate': [0.05, 0.1],
+    'n_estimators': [100, 200]
+}
+
+# Define the GridSearchCV object
+# We use 3-fold cross-validation (cv=3) for speed.
+# 'neg_mean_tweedie_deviance' is the correct scoring for this model.
+
+cv = GridSearchCV(
+    estimator=lgbm_estimator,
+    param_grid=param_grid,
+    cv=3,
+    n_jobs=-1
+)
+
+cv.fit(X_train_t, y_train_t, sample_weight=w_train_t)
 
 df_test["pp_t_lgbm"] = cv.best_estimator_.predict(X_test_t)
 df_train["pp_t_lgbm"] = cv.best_estimator_.predict(X_train_t)
