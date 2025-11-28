@@ -26,7 +26,8 @@ y = df["PurePremium"]
 
 
 # TODO: use your create_sample_split function here
-# df = create_sample_split(...)
+df = create_sample_split(df, id_column="IDpol", training_frac=0.8)
+
 train = np.where(df["sample"] == "train")
 test = np.where(df["sample"] == "test")
 df_train = df.iloc[train].copy()
@@ -248,5 +249,39 @@ ax.set(
 )
 ax.legend(loc="upper left")
 plt.plot()
+# %%
+# ====================================================================
+# PROBLEM SET 4 - Exercise 3: Metrics Function
+# ====================================================================
 
+from ps3.evaluation import evaluate_predictions
+
+# Evaluate all models on the test set
+metrics_glm1 = evaluate_predictions(
+    predictions=df_test["pp_t_glm1"],
+    actuals=df_test["PurePremium"],
+    sample_weight=df_test["Exposure"]
+)
+
+metrics_glm2 = evaluate_predictions(
+    predictions=df_test["pp_t_glm2"],
+    actuals=df_test["PurePremium"],
+    sample_weight=df_test["Exposure"]
+)
+
+metrics_lgbm = evaluate_predictions(
+    predictions=df_test["pp_t_lgbm"],
+    actuals=df_test["PurePremium"],
+    sample_weight=df_test["Exposure"]
+)
+
+# Compare all the model
+comparison_df = pd.DataFrame({
+    'GLM_Benchmark': metrics_glm1['Value'],
+    'GLM_Splines': metrics_glm2['Value'],
+    'LGBM': metrics_lgbm['Value']
+})
+
+print("Model Comparison:")
+print(comparison_df)
 # %%
