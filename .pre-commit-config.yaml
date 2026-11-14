@@ -19,7 +19,7 @@ repos:
 
 # Static type checking
 - repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v2.4.0
+  rev: v1.13.0
   hooks:
     - id: mypy
       additional_dependencies: [types-seaborn, polars, pandas-stubs, matplotlib]
