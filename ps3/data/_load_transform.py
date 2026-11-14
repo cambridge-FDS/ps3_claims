@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def load_transform():
+def load_transform() -> pd.DataFrame:
     """Load and transform data from OpenML.
 
     Source: https://glum.readthedocs.io/en/latest/tutorials/glm_french_motor_tutorial/glm_french_motor.html#
