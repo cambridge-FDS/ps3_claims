@@ -18,15 +18,23 @@ Set up the environment and install the hook in your own clone using the README. 
 
 [Exercise instructions](https://languid-citipati-d0d.notion.site/Ex-1-Create-fixed-train-test-split-2ac32dea82c181e082a6c7b76a79f71a)
 
-1. **After setup**, A writes `create_sample_column(df, id_columns, training_frac=0.8)` in `ps3/data/_sample_split.py`. Use one or more key columns, return `sample` with `train` or `test`, and keep `create_sample_split` available for the existing script. In `tests/data/test_sample_split.py`, check that repeated calls, reordered rows and new records leave existing assignments stable. Cover multiple keys, fractions and edge cases. Document the bucketing choice and what the fraction means.
-2. **Once the split is merged and C's data interface is agreed**, A plugs it into the shared data entry point for Ex3 item 2 and records the keys and training fraction. C, D and E can then use the same split for their models, as can A for the initial LightGBM.
+**A owns the split and tests.**
+
+- Implement `create_sample_column(df, id_columns, training_frac=0.8)` in `ps3/data/_sample_split.py`. Support one or more key columns, write `train` or `test` to `sample`, and keep the existing `create_sample_split` entry point.
+- In `tests/data/test_sample_split.py`, check that repeated calls, reordered rows and new records leave existing assignments stable. Cover multiple keys, fractions and edge cases. Briefly explain the bucketing choice and training fraction.
+
+**For Ex3**, A agrees the data interface with C, then connects the merged split to the shared data entry point and records the keys and training fraction (item 2).
 
 ## Ex2 · Winsorizer
 
 [Exercise instructions](https://languid-citipati-d0d.notion.site/Ex-2-Write-your-own-Transformer-2ac32dea82c181679356c02e5fc4436e)
 
-1. **Alongside Ex1**, B completes `ps3/preprocessing/_winsorizer.py` and `tests/preprocessing/test_winsorizer.py`. Accept `lower_quantile` and `upper_quantile` in `__init__`, save fitted quantiles as `lower_quantile_` and `upper_quantile_`, and clip in `transform`. Test different quantiles, fit/transform behaviour and sklearn pipeline compatibility. Include the test command.
-2. **Before Ex3 integration**, B agrees with D/E on input shape, output format, which numeric branch uses the Winsorizer and how to fit it within each training fold. Once the component is merged and the relevant pipeline is ready, B provides the reusable preprocessing and usage instructions for D/E to call.
+**B owns the Winsorizer and its tests.**
+
+- Complete `ps3/preprocessing/_winsorizer.py`. Accept `lower_quantile` and `upper_quantile` in `__init__`, save the fitted quantiles as `lower_quantile_` and `upper_quantile_`, and clip the data in `transform`.
+- Complete `tests/preprocessing/test_winsorizer.py`. Cover different quantiles, fit/transform behaviour and compatibility with sklearn pipelines. Include the test command.
+
+**For Ex3**, B agrees on inputs, outputs, the numeric branch and fitting within each training fold with D and E, then hands them the component and usage instructions once it is merged and their pipelines are ready.
 
 ## Ex3 · Train and compare the models
 
