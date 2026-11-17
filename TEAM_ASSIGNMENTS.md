@@ -40,15 +40,11 @@ Set up the environment and install the hook in your own clone using the README. 
 
 [Exercise instructions](https://languid-citipati-d0d.notion.site/Ex-3-Improve-the-model-2ac32dea82c18123a6e1e926a62721a9)
 
-1. **After setup, start in parallel.**
-   - **A** works on the fixed split and can prepare the initial LightGBM interface.
-   - **B** builds the Winsorizer and agrees how D/E will use it.
-   - **C** checks OpenML access and required columns with `load_transform` (item 1), keeps the supplied transformations, and prepares shared data and evaluation code in `analyses/ps3_script.py`.
-   - **D** prepares the feature transformations. **E** prepares the search and evaluation code.
-2. **With the fixed split and shared interfaces in place, run the first models in parallel.**
+1. **After setup, C prepares the shared data and evaluation code.** Use `load_transform` to check OpenML access and required columns. Keep the supplied transformations and put the shared code in `analyses/ps3_script.py` (item 1).
+2. **Once the Ex1 train/test split is connected to the shared data entry point, start running models.** C and A can run theirs in parallel.
    - **C** runs the Tweedie benchmark (item 3), saves its metrics and explains why the target is divided by Exposure.
-   - **D** uses polynomials or splines for `BonusMalus` and `VehPower` (item 4). Use `VehPower` as required by the problem set even though the script comments mention `Density`, and avoid also feeding `VehPower` in as a categorical feature. Use B's Winsorizer once ready wherever the pipeline calls for it. Hand over the separate model module, train/test deviance, relevant figures and an explanation of how to spot overfitting.
    - **A** runs the initial LightGBM (item 5). Hand `analyses/lgbm_baseline.py`, the prediction entry point, parameters, metrics and run instructions to E.
+   - **Once the Ex2 Winsorizer is ready, D starts improving the parametric model** with polynomials or splines for `BonusMalus` and `VehPower` (item 4). Use `VehPower` as required by the problem set even though the script comments mention `Density`, and avoid also feeding `VehPower` in as a categorical feature. Hand over the separate model module, train/test deviance, relevant figures and an explanation of how to spot overfitting.
 3. **Once A hands over the initial LightGBM, E tunes it** (item 5). Use cross-validation within the training data and fit preprocessing inside each training fold. Coordinate Winsorizer use with B as needed. Compare with the initial LightGBM and GLM, and hand C `analyses/lgbm_tuning.py`, CV results, chosen parameters, final metrics and the reasoning behind the selection and checks for overfitting.
 4. **Once the model code and metrics are ready, C brings them together.** Connect the runnable entry point, collect all four sets of metrics in `results/metrics.csv`, explain the comparisons and include the Lorenz/Gini figures. Update the README with the final run instructions. C can prepare the summary template while others work.
 
