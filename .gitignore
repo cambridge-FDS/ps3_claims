@@ -1,0 +1,28 @@
+# Local environments and Python build/cache files
+.conda/
+.venv/
+.pixi/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.ipynb_checkpoints/
+# Local editor / OS files
+.DS_Store
+.vscode/
+.idea/
+# Local data, fitted models and bulky per-policy predictions
+/data/
+/models/
+/results/*predictions*.csv
+/results/*predictions*.parquet
+# Agent execution files (shared project instructions remain trackable)
+.workbuddy-execution/
