@@ -2,7 +2,9 @@
 """Tests for the Winsorizer transformer."""
 
 import numpy as np
+import pandas as pd
 import pytest
+from sklearn import utils as sklearn_utils
 from sklearn.exceptions import NotFittedError
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -27,27 +29,46 @@ def test_winsorizer(lower_quantile, upper_quantile):
     np.testing.assert_allclose(
         X_transformed, np.clip(X, lower, upper)
     )
-    np.testing.assert_allclose(transformer.lower_quantile_, lower)
-    np.testing.assert_allclose(transformer.upper_quantile_, upper)
+    np.testing.assert_allclose(
+        transformer.lower_quantile_, lower
+    )
+    np.testing.assert_allclose(
+        transformer.upper_quantile_, upper
+    )
+
     assert X_transformed.shape == X.shape
 
 
 def test_transform_uses_training_quantiles():
-    """Check that test data does not change fitted boundaries."""
-    X_train = np.array([[0.0], [10.0], [20.0], [30.0], [100.0]])
-    X_test = np.array([[-100.0], [50.0], [1000.0]])
+    """Check that test data uses training boundaries."""
+    X_train = np.array([
+        [0.0],
+        [10.0],
+        [20.0],
+        [30.0],
+        [100.0],
+    ])
+
+    X_test = np.array([
+        [-100.0],
+        [50.0],
+        [1000.0],
+    ])
 
     transformer = Winsorizer(0.25, 0.75).fit(X_train)
     result = transformer.transform(X_test)
 
-    np.testing.assert_allclose(result, [[10.0], [30.0], [30.0]])
+    np.testing.assert_allclose(
+        result, [[10.0], [30.0], [30.0]]
+    )
+
     np.testing.assert_allclose(
         X_test, [[-100.0], [50.0], [1000.0]]
     )
 
 
 def test_two_features_and_pipeline():
-    """Check multiple features and sklearn Pipeline compatibility."""
+    """Check two features and sklearn Pipeline compatibility."""
     X = np.array([
         [0.0, 100.0],
         [10.0, 200.0],
@@ -66,7 +87,9 @@ def test_two_features_and_pipeline():
         [30.0, 400.0],
     ])
 
-    np.testing.assert_allclose(transformer.transform(X), expected)
+    np.testing.assert_allclose(
+        transformer.transform(X), expected
+    )
 
     pipeline = Pipeline([
         ("winsorizer", Winsorizer(0.25, 0.75)),
@@ -80,28 +103,85 @@ def test_two_features_and_pipeline():
 
 
 def test_transform_before_fit():
-    """Check that transform requires a fitted transformer."""
+    """Check that transform requires prior fitting."""
     with pytest.raises(NotFittedError):
-        Winsorizer().transform(np.array([0.0, 10.0, 20.0]))
+        Winsorizer().transform(
+            np.array([0.0, 10.0, 20.0])
+        )
 
 
 @pytest.mark.parametrize(
     "lower_quantile, upper_quantile",
-    [(-0.1, 0.9), (0.2, 1.1), (0.8, 0.2)],
+    [
+        (-0.1, 0.9),
+        (0.2, 1.1),
+        (0.8, 0.2),
+    ],
 )
-def test_invalid_quantiles(lower_quantile, upper_quantile):
+def test_invalid_quantiles(
+    lower_quantile, upper_quantile
+):
     """Check invalid quantile settings."""
     with pytest.raises(ValueError):
-        Winsorizer(lower_quantile, upper_quantile).fit(
-            np.arange(5, dtype=float)
-        )
+        Winsorizer(
+            lower_quantile, upper_quantile
+        ).fit(np.arange(5, dtype=float))
 
 
 def test_wrong_feature_count():
-    """Check that transform uses the fitted number of features."""
+    """Check incorrect feature counts."""
     transformer = Winsorizer().fit(
-        np.array([[0.0, 10.0], [1.0, 11.0]])
+        np.array([
+            [0.0, 10.0],
+            [1.0, 11.0],
+        ])
     )
 
     with pytest.raises(ValueError):
-        transformer.transform(np.array([[2.0]]))
+        transformer.transform(
+            np.array([[2.0]])
+        )
+
+
+def test_transformer_tags():
+    """Check sklearn recognizes Winsorizer as a transformer."""
+    if not hasattr(sklearn_utils, "get_tags"):
+        pytest.skip(
+            "get_tags is unavailable in this sklearn version"
+        )
+
+    tags = sklearn_utils.get_tags(Winsorizer())
+
+    assert tags.transformer_tags is not None
+
+
+def test_dataframe_column_order():
+    """Check that reordered DataFrame columns are rejected."""
+    X_train = pd.DataFrame({
+        "age": [0.0, 10.0, 20.0, 30.0, 100.0],
+        "salary": [100.0, 200.0, 300.0, 400.0, 1000.0],
+    })
+
+    X_test = pd.DataFrame({
+        "age": [35.0],
+        "salary": [150.0],
+    })
+
+    pipeline = Pipeline([
+        ("winsorizer", Winsorizer(0.25, 0.75)),
+    ])
+
+    pipeline.fit(X_train)
+
+    np.testing.assert_allclose(
+        pipeline.transform(X_test),
+        [[30.0, 200.0]],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="columns.*order",
+    ):
+        pipeline.transform(
+            X_test[["salary", "age"]]
+        )
