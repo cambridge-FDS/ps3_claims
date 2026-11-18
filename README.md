@@ -4,7 +4,7 @@ This repository is shared by the team for all three PS3 exercises. The upstream 
 [cambridge-FDS/ps3_claims](https://github.com/cambridge-FDS/ps3_claims).
 
 - [Official problem set](https://languid-citipati-d0d.notion.site/PS-3-Feature-engineering-modelling-2ac32dea82c1814dad25e6d3c2af3b4e)
-- [A–E assignments, prerequisites and shared interfaces](TEAM_ASSIGNMENTS.md) (roles awaiting assignment)
+- [Team assignments, prerequisites and shared interfaces](TEAM_ASSIGNMENTS.md)
 - [Instructor-specified glum tutorial](https://glum.readthedocs.io/en/latest/tutorials/glm_french_motor_tutorial/glm_french_motor.html)
 
 Deadline: 20 November 2026 at 12 noon. One team member should email the public repository
