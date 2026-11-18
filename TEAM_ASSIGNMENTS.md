@@ -4,15 +4,15 @@
 
 **Deadline — Friday, 20 November 2026 at 12 noon.** One team member emails the public GitHub repository link to Vahan (vg400@cam.ac.uk).
 
-| Role to claim | Main work |
-| --- | --- |
-| A | Fixed train/test split and initial LightGBM model |
-| B | Winsorizer implementation, tests and pipeline integration |
-| C | Shared data and evaluation code, Tweedie benchmark and final comparison |
-| D | Parametric model with polynomials or splines |
-| E | LightGBM tuning and comparison |
+| Role | Ex3 owner | Main work |
+| --- | --- | --- |
+| A | `ll-1874` | Fixed train/test split and initial LightGBM model |
+| B | `Liyanbo-cpu` | Winsorizer implementation, tests and pipeline integration |
+| C | `ozhou706-ship-it` | Shared data and evaluation code, Tweedie benchmark and final comparison |
+| D | `starries-creator` | Parametric model with polynomials or splines |
+| E | `zcyMary` | LightGBM tuning and comparison |
 
-Set up the environment and install the hook in your own clone using the README. Work on your own branch and open a PR with what you did and checked. The repository owner normally coordinates review and merging. Pull the latest `main` after changes you depend on are merged.
+Set up the environment and install the hook in your own clone using the README. Work on your own branch and open a PR with what you did and checked. State which exercise each PR covers and note any changes to another exercise's code. The repository owner normally coordinates review and merging. Pull the latest `main` after changes you depend on are merged.
 
 ## Ex1 · Fixed train/test split
 
