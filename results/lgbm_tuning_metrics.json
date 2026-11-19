@@ -1,0 +1,63 @@
+{
+  "model": "LightGBM Tweedie tuned",
+  "split": {
+    "method": "deterministic ID hash bucketing",
+    "id_columns": [
+      "IDpol"
+    ],
+    "training_fraction": 0.8,
+    "sample_column": "sample"
+  },
+  "train_rows": 542605,
+  "test_rows": 135408,
+  "train_weighted_tweedie_deviance": 66.42533419375171,
+  "test_weighted_tweedie_deviance": 74.13805004886386,
+  "target": "PurePremium",
+  "target_definition": "ClaimAmountCut / Exposure",
+  "weights": "Exposure",
+  "tweedie_power": 1.5,
+  "parameters": {
+    "objective": "tweedie",
+    "tweedie_variance_power": 1.5,
+    "n_estimators": 300,
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "max_depth": -1,
+    "min_child_samples": 20,
+    "colsample_bytree": 0.9,
+    "reg_lambda": 0.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "selection_method": "3-fold CV within the training sample; selected by mean Exposure-weighted validation Tweedie deviance",
+  "cross_validation": {
+    "baseline_mean_weighted_tweedie_deviance": 74.26428141715014,
+    "selected_mean_weighted_tweedie_deviance": 73.72399585923905,
+    "improvement_over_baseline": 0.5402855579110906,
+    "n_splits": 3,
+    "random_state": 42
+  },
+  "baseline_comparison": {
+    "baseline_parameters": {
+      "objective": "tweedie",
+      "tweedie_variance_power": 1.5,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "num_leaves": 31,
+      "max_depth": -1,
+      "min_child_samples": 20,
+      "colsample_bytree": 0.9,
+      "reg_lambda": 0.0,
+      "random_state": 42,
+      "n_jobs": -1,
+      "verbosity": -1
+    },
+    "baseline_train_weighted_tweedie_deviance": 64.54578910743517,
+    "baseline_test_weighted_tweedie_deviance": 74.6693871177049
+  },
+  "overfit_check": {
+    "train_test_deviance_gap": 7.712715855112151,
+    "interpretation": "Compare the training deviance with both CV validation deviance and held-out test deviance; a much lower training value indicates a gap that may reflect overfitting."
+  }
+}
