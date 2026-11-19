@@ -152,17 +152,21 @@ def write_metrics_csv(results_dir="results", *, gini_by_model=None):
     return path
 
 
-# The same policy-count axis and cumulative claims as the instructor's plot.
+# The instructor's policy-count axis with ties treated as a single group.
 def lorenz_curve(y_true, y_pred, exposure):
-    """Sort by predicted pure premium and accumulate actual claim amounts."""
+    """Accumulate claims at the endpoints of tied prediction groups."""
     y_true, y_pred = np.asarray(y_true, dtype=float), np.asarray(y_pred)
     exposure = np.asarray(exposure, dtype=float)
     ranking = np.argsort(y_pred)
+    sorted_predictions = y_pred[ranking]
     cumulated_claim_amount = np.cumsum(y_true[ranking] * exposure[ranking])
     if len(cumulated_claim_amount) < 2 or cumulated_claim_amount[-1] <= 0:
         raise ValueError("Lorenz curves require at least two policies and positive total claims")
-    cumulated_claim_amount /= cumulated_claim_amount[-1]
-    cumulated_samples = np.linspace(0, 1, len(cumulated_claim_amount))
+    group_ends = np.r_[np.flatnonzero(np.diff(sorted_predictions) != 0), len(y_pred) - 1]
+    cumulated_samples = np.r_[0.0, (group_ends + 1) / len(y_pred)]
+    cumulated_claim_amount = np.r_[
+        0.0, cumulated_claim_amount[group_ends] / cumulated_claim_amount[-1]
+    ]
     return cumulated_samples, cumulated_claim_amount
 
 
@@ -207,7 +211,7 @@ def save_comparison(train, test, results_dir):
     predictions = {}
     for row in metrics.itertuples(index=False):
         if (row.n_train, row.n_test) != (len(train), len(test)) or (
-            row.split_fingerprint is not None and row.split_fingerprint != fingerprint
+            pd.notna(row.split_fingerprint) and row.split_fingerprint != fingerprint
         ):
             raise ValueError(f"{row.model_name} metrics do not match the official split")
         path = results_dir / f"{row.model}_predictions.csv"

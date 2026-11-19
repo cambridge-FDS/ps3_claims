@@ -113,7 +113,8 @@ fingerprints and claim totals. Those CSV fields stay blank until locally scored
 metrics are available.
 The `compare` command checks policy membership and recalculates test deviance
 from each prediction file before plotting. The figure uses the instructor's
-policy-count axis and reports unnormalized Gini as `1 - 2 * AUC`. Lower test
+policy-count axis, starts at the origin and groups tied predictions before
+computing unnormalized Gini as `1 - 2 * AUC`. Lower test
 deviance indicates better out-of-sample fit, while higher Gini indicates stronger
 risk ranking. The train–test deviance gap is a diagnostic for generalisation.
 
@@ -121,7 +122,8 @@ D and E can call `model_metrics()` from `analyses.part_c` with the common train 
 test frames and policy-indexed predictions for `parametric_glm` and
 `lightgbm_tuned`. Save their metrics via `write_model_metrics()` and keep each test
 prediction Series in `results/<model>_predictions.csv` with columns `IDpol` and
-`PurePremiumPredicted`. These prediction files are gitignored. For E, use
+`PurePremiumPredicted`. `model_metrics()` verifies the ID-based split before
+recording its metadata. These prediction files are gitignored. For E, use
 `run_lgbm_tuning()` from `analyses.lgbm_tuning` to obtain the selected model, then
 `predict_pure_premium()` from `analyses.lgbm_baseline` on the common test frame.
 Rerun `compare` as model outputs become available.

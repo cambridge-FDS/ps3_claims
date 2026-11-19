@@ -7,6 +7,7 @@ import pytest
 from analyses import part_c
 from analyses.model_comparison import (
     comparison_curves,
+    lorenz_curve,
     read_model_metrics,
     save_comparison,
     write_metrics_csv,
@@ -22,7 +23,7 @@ def policies():
             **{column: ["A", "A", "B", "B"] for column in part_c.CATEGORICALS},
             "BonusMalus": [70, 80, 85, 90],
             "Density": [10, 100, 20, 25],
-            "IDpol": [21, 11, 41, 31],
+            "IDpol": [0, 1, 3, 5],
             "Exposure": [0.25, 1.0, 0.5, 1.0],
             "ClaimAmountCut": [0.0, 4.0, 0.5, 2.0],
         }
@@ -146,10 +147,10 @@ def test_lorenz_curves_keep_initial_and_tuned_predictions_separate(samples):
     predictions["lightgbm_initial"] = pd.Series([2.0, 1.0], index=test.index)
     curves = comparison_curves(test, predictions)
     x, claims, gini = curves["Tuned LightGBM"]
-    np.testing.assert_allclose(x, [0.0, 1.0])
-    np.testing.assert_allclose(claims, [0.2, 1.0])
-    assert gini == pytest.approx(-0.2)
-    assert curves["Initial LightGBM"][2] == pytest.approx(-0.8)
+    np.testing.assert_allclose(x, [0.0, 0.5, 1.0])
+    np.testing.assert_allclose(claims, [0.0, 0.2, 1.0])
+    assert gini == pytest.approx(0.3)
+    assert curves["Initial LightGBM"][2] == pytest.approx(-0.3)
     assert curves["Oracle"][2] == pytest.approx(gini)
 
     partial = comparison_curves(test, {"lightgbm_tuned": predictions["lightgbm_tuned"]})
@@ -167,12 +168,11 @@ def test_benchmark_with_real_glum_and_categorizer(policies):
     frame["BonusMalus"] = rng.uniform(70, 95, len(frame))
     frame["Density"] = rng.uniform(20, 250, len(frame))
     frame["ClaimAmountCut"] = rng.uniform(1, 10, len(frame))
-    frame["sample"] = np.where(frame["IDpol"] < 60, "train", "test")
-    frame = part_c.prepare_data(frame)
+    frame = load_model_data(frame)
     metrics, coefficients, train_predictions, test_predictions = part_c.run_baseline(
         frame
     )
-    assert (metrics["n_train"], metrics["n_test"]) == (60, 20)
+    assert metrics["n_train"] + metrics["n_test"] == 80
     assert "intercept" in coefficients
     assert "Density" in coefficients
     train, test = part_c.sample_frames(frame)
@@ -246,7 +246,7 @@ def test_save_partial_comparison_validates_predictions_and_writes_figure(samples
     save_comparison(train, test, tmp_path)
     assert (tmp_path / "lorenz_comparison.png").stat().st_size > 0
     [row] = pd.read_csv(tmp_path / "metrics.csv").to_dict("records")
-    assert row["test_gini"] == pytest.approx(-0.2)
+    assert row["test_gini"] == pytest.approx(0.3)
 
     (test_predictions * 1.1).rename("PurePremiumPredicted").to_csv(path)
     with pytest.raises(ValueError, match="recorded test deviance"):
@@ -263,3 +263,68 @@ def test_initial_lightgbm_with_real_estimator(policies):
     assert predictions.index.equals(test.index)
     assert metrics["split_fingerprint"] == part_c.split_fingerprint(train, test)
     assert metrics["test_deviance"] == part_c.evaluate_sample(test, predictions)["deviance"]
+
+
+def test_lorenz_ties_are_order_independent_and_constant_prediction_is_random():
+    from sklearn.metrics import auc
+
+    claims = np.array([0.0, 0.0, 0.0, 100.0])
+    exposure = np.ones(4)
+    prediction = np.ones(4)
+    x, y = lorenz_curve(claims, prediction, exposure)
+    reversed_x, reversed_y = lorenz_curve(claims[::-1], prediction[::-1], exposure)
+    np.testing.assert_allclose(x, [0, 1])
+    np.testing.assert_allclose(y, [0, 1])
+    np.testing.assert_allclose(reversed_x, x)
+    np.testing.assert_allclose(reversed_y, y)
+    assert 1 - 2 * auc(x, y) == pytest.approx(0)
+
+    scores = np.array([1.0, 1.0, 2.0, 2.0])
+    expected_x, expected_y = lorenz_curve(claims, scores, exposure)
+    order = np.array([1, 0, 3, 2])
+    actual_x, actual_y = lorenz_curve(claims[order], scores[order], exposure[order])
+    np.testing.assert_allclose(actual_x, expected_x)
+    np.testing.assert_allclose(actual_y, expected_y)
+
+
+def test_model_metrics_rejects_alternate_split(policies):
+    frame = pd.concat([policies] * 10, ignore_index=True)
+    frame["IDpol"] = np.arange(len(frame))
+    frame = create_sample_column(part_c.prepare_data(frame), "IDpol", training_frac=0.5)
+    train, test = part_c.sample_frames(frame)
+    with pytest.raises(ValueError, match="do not match the official split"):
+        part_c.model_metrics(
+            "parametric_glm", train, test,
+            pd.Series(1.0, index=train.index), pd.Series(1.0, index=test.index),
+            parameters={}, selection_method="fixture",
+        )
+
+
+def test_comparison_allows_provisional_record_with_verified_predictions(samples, tmp_path):
+    train, test = samples
+    train_predictions = pd.Series([1.0, 4.0], index=train.index)
+    test_predictions = pd.Series([1.0, 2.0], index=test.index)
+    metrics = part_c.model_metrics(
+        "tweedie_glm", train, test, train_predictions, test_predictions,
+        parameters={}, selection_method="fixture",
+    )
+    part_c.write_model_metrics(metrics, tmp_path)
+    test_predictions.rename("PurePremiumPredicted").to_csv(
+        tmp_path / "tweedie_glm_predictions.csv"
+    )
+    recorded = {
+        "model": "LightGBM Tweedie tuned", "split": part_c.SPLIT,
+        "train_rows": len(train), "test_rows": len(test),
+        "train_weighted_tweedie_deviance": 1.0,
+        "test_weighted_tweedie_deviance": 1.2,
+        "target": part_c.TARGET, "target_definition": part_c.TARGET_DEFINITION,
+        "weights": part_c.WEIGHT, "tweedie_power": part_c.TWEEDIE_POWER,
+        "parameters": {}, "selection_method": "recorded",
+    }
+    (tmp_path / "lgbm_tuning_metrics.json").write_text(json.dumps(recorded))
+    save_comparison(train, test, tmp_path)
+    assert (tmp_path / "lorenz_comparison.png").is_file()
+    comparison = pd.read_csv(tmp_path / "metrics.csv").set_index("model")
+    assert pd.isna(comparison.loc["lightgbm_tuned", "split_fingerprint"])
+    assert "E's recorded run" in comparison.loc["lightgbm_tuned", "source"]
+    assert pd.isna(comparison.loc["lightgbm_tuned", "test_gini"])

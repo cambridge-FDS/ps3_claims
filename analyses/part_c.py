@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_tweedie_deviance
 
-from ps3.data import load_transform
+from ps3.data import create_sample_column, load_transform
 
 TARGET = "PurePremium"
 WEIGHT = "Exposure"
@@ -127,6 +127,17 @@ def model_metrics(
     """Build the common JSON payload from each model's policy-indexed predictions."""
     if not train.index.intersection(test.index).empty:
         raise ValueError("Train and test policy IDs must be disjoint")
+    for expected_label, frame in (("train", train), ("test", test)):
+        require_columns(frame, SPLIT["id_columns"])
+        if not frame.index.is_unique or not frame.index.equals(pd.Index(frame["IDpol"])):
+            raise ValueError("Each frame must be indexed by its unique IDpol values")
+        expected = create_sample_column(
+            frame.reset_index(drop=True),
+            id_columns=SPLIT["id_columns"],
+            training_frac=SPLIT["training_fraction"],
+        )
+        if not expected["sample"].eq(expected_label).all():
+            raise ValueError("Policy assignments do not match the official split")
     train_scores = evaluate_sample(train, train_predictions)
     test_scores = evaluate_sample(test, test_predictions)
     return {
