@@ -161,8 +161,11 @@ kept under `data/tuning_runs/`, preserving E's published outputs unchanged.
 
 The relative claim error is `(predicted - observed) / observed`; it is undefined
 when observed claims are zero. Gini uses the teacher's policy-count axis and is
-unnormalized. `metrics` summarizes JSON records without revalidating predictions;
-use `compare` for the final Gini table and figure.
+unnormalized. `metrics` summarizes JSON records without revalidating predictions
+and retains previously verified Ginis. `gini_status` distinguishes those saved
+values from values recomputed by `compare`. Use `compare` for the final table and
+figure. Remote reads have a configurable `--network-timeout` (300 seconds per
+socket read by default); this leaves the instructor's transformations unchanged.
 
 D's quadratic specification was selected after test-tail diagnostics, as recorded
 in D's handover notes. Its score is therefore an exploratory comparison, not an
