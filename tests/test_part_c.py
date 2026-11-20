@@ -23,7 +23,7 @@ def policies():
             **{column: ["A", "A", "B", "B"] for column in part_c.CATEGORICALS},
             "BonusMalus": [70, 80, 85, 90],
             "Density": [10, 100, 20, 25],
-            "IDpol": [0, 1, 3, 5],
+            "IDpol": [0, 1, 7, 12],
             "Exposure": [0.25, 1.0, 0.5, 1.0],
             "ClaimAmountCut": [0.0, 4.0, 0.5, 2.0],
         }

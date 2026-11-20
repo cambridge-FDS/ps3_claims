@@ -14,7 +14,7 @@ from analyses import ps3_script
 
 def test_final_report_keeps_relative_error_and_verification_source(tmp_path):
     frame = pd.DataFrame({
-        "IDpol": [0, 1, 3, 5], "PurePremium": [0., 4., 1., 2.],
+        "IDpol": [0, 1, 7, 12], "PurePremium": [0., 4., 1., 2.],
         "ClaimAmountCut": [0., 4., .5, 2.], "Exposure": [.25, 1., .5, 1.],
         "sample": ["train", "train", "test", "test"],
     })
@@ -35,7 +35,7 @@ def test_final_report_keeps_relative_error_and_verification_source(tmp_path):
 
 def test_report_rejects_mixed_dataset_fingerprints(tmp_path):
     frame = pd.DataFrame({
-        "IDpol": [0, 1, 3, 5], "PurePremium": [0., 4., 1., 2.],
+        "IDpol": [0, 1, 7, 12], "PurePremium": [0., 4., 1., 2.],
         "ClaimAmountCut": [0., 4., .5, 2.], "Exposure": [.25, 1., .5, 1.],
         "sample": ["train", "train", "test", "test"],
     })
@@ -73,7 +73,7 @@ def test_e_adapter_runs_original_cv_and_shared_scoring(tmp_path):
 
 def test_offline_summary_preserves_prediction_verified_gini(tmp_path):
     frame = pd.DataFrame({
-        "IDpol": [0, 1, 3, 5], "PurePremium": [0., 4., 1., 2.],
+        "IDpol": [0, 1, 7, 12], "PurePremium": [0., 4., 1., 2.],
         "ClaimAmountCut": [0., 4., .5, 2.], "Exposure": [.25, 1., .5, 1.],
         "sample": ["train", "train", "test", "test"],
     })
@@ -92,7 +92,7 @@ def test_offline_summary_preserves_prediction_verified_gini(tmp_path):
 
 def test_partial_comparison_retains_other_models_published_gini(tmp_path):
     frame = pd.DataFrame({
-        "IDpol": [0, 1, 3, 5], "PurePremium": [0., 4., 1., 2.],
+        "IDpol": [0, 1, 7, 12], "PurePremium": [0., 4., 1., 2.],
         "ClaimAmountCut": [0., 4., .5, 2.], "Exposure": [.25, 1., .5, 1.],
         "sample": ["train", "train", "test", "test"],
     })
@@ -119,7 +119,7 @@ def test_cli_bounds_remote_read_and_restores_socket_timeout(monkeypatch):
     seen = []
     def loader(frame):
         seen.append(socket.getdefaulttimeout())
-        return pd.DataFrame({"IDpol": [0, 3], "sample": ["train", "test"]})
+        return pd.DataFrame({"IDpol": [0, 7], "sample": ["train", "test"]})
     monkeypatch.setattr(ps3_script, "load_model_data", loader)
     ps3_script.main(["check-data", "--network-timeout", "300"])
     assert seen == [300.]
