@@ -29,19 +29,23 @@ def load_transform():
     # load the datasets
     # first row (=column names) uses "", all other rows use ''
     # use '' as quotechar as it is easier to change column names
+    print("1. Downloading frequency data...", flush=True)
     df = pd.read_csv(
         "https://www.openml.org/data/get_csv/20649148/freMTPL2freq.arff", quotechar="'"
     )
 
+    print("2. Frequency data loaded:", df.shape, flush=True)
     # rename column names '"name"' => 'name'
     df = df.rename(lambda x: x.replace('"', ""), axis="columns")
     df["IDpol"] = df["IDpol"].astype(np.int64)
     df.set_index("IDpol", inplace=True)
 
+    print("3. Downloading severity data...", flush=True)
     df_sev = pd.read_csv(
         "https://www.openml.org/data/get_csv/20649149/freMTPL2sev.arff", index_col=0
     )
 
+    print("4. Severity data loaded:", df_sev.shape, flush=True)
     # join ClaimAmount from df_sev to df:
     #   1. cut ClaimAmount at 100_000
     #   2. aggregate ClaimAmount per IDpol
@@ -68,4 +72,5 @@ def load_transform():
 
     df = df.reset_index()
 
+    print("5. Merge and transformations complete:", df.shape, flush=True)
     return df
