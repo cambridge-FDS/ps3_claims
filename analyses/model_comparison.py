@@ -53,7 +53,7 @@ def _read_recorded_lightgbm(path, model, published_name):
         "model": model,
         "model_name": MODEL_NAMES[model],
         "split": raw["split"],
-        "split_fingerprint": None,
+        "split_fingerprint": raw.get("split_fingerprint"),
         "n_train": raw["train_rows"],
         "n_test": raw["test_rows"],
         "train_deviance": raw["train_weighted_tweedie_deviance"],
@@ -103,7 +103,7 @@ def read_model_metrics(results_dir):
         ):
             raise ValueError(f"Inconsistent split or evaluation convention in {path.name}")
         fingerprint = row["split_fingerprint"]
-        if not recorded and (
+        if (not recorded or fingerprint is not None) and (
             not isinstance(fingerprint, str)
             or len(fingerprint) != 64
             or any(c not in "0123456789abcdef" for c in fingerprint)

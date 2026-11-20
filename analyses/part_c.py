@@ -252,6 +252,8 @@ def run_initial_lightgbm(frame):
     )
     if (
         recorded["split"] != metrics["split"]
+        or recorded.get("split_fingerprint", metrics["split_fingerprint"])
+        != metrics["split_fingerprint"]
         or recorded["target"] != TARGET
         or recorded["target_definition"] != TARGET_DEFINITION
         or recorded["weights"] != WEIGHT
@@ -287,6 +289,12 @@ def run_tuned_lightgbm(frame, audit_dir):
         "lightgbm_tuned", train, test, train_predictions, test_predictions,
         parameters=recorded["parameters"], selection_method=recorded["selection_method"],
     )
+    if any(
+        result.get("split_fingerprint", metrics["split_fingerprint"])
+        != metrics["split_fingerprint"]
+        for result in (cv, recorded)
+    ):
+        raise ValueError("E's LightGBM run used different policy assignments")
     for label in ("train", "test"):
         if not np.isclose(metrics[f"{label}_deviance"], recorded[f"{label}_weighted_tweedie_deviance"], rtol=1e-10):
             raise ValueError("E's deviance disagrees with shared evaluation")
