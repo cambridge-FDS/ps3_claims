@@ -16,6 +16,7 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
+from ps3.data import create_sample_column, load_transform
 from ps3.preprocessing import Winsorizer
 
 
@@ -147,6 +148,15 @@ def compare_variants(train):
     return scores.loc[0, "variant"]
 
 
+def prepare_model_data(frame, id_columns="IDpol", training_fraction=0.8):
+    """Apply the shared splitter and reject a cache with obsolete assignments."""
+    prepared = create_sample_column(frame, id_columns, training_fraction)
+    if "sample" in frame and not np.array_equal(frame["sample"], prepared["sample"]):
+        raise ValueError("Supplied sample labels differ from the current shared split")
+    prepared["PurePremium"] = prepared["ClaimAmountCut"] / prepared["Exposure"]
+    return prepared
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     models = parser.add_mutually_exclusive_group()
@@ -177,18 +187,13 @@ def main():
     if args.write_predictions and not args.handoff:
         parser.error("--write-predictions requires --handoff")
 
+    input_frame = pd.read_parquet(args.data) if args.data else load_transform()
     if args.handoff:
         from analyses.part_c import SPLIT, prepare_data, write_model_metrics
-        from ps3.data import create_sample_column
 
-        input_frame = pd.read_parquet(args.data) if args.data else None
-        frame = prepare_data(input_frame)
-        if "sample" not in frame:
-            frame = create_sample_column(
-                frame,
-                id_columns=SPLIT["id_columns"],
-                training_frac=SPLIT["training_fraction"],
-            )
+        frame = prepare_model_data(
+            prepare_data(input_frame), SPLIT["id_columns"], SPLIT["training_fraction"]
+        )
         metrics, _, test_predictions = run_parametric_glm(frame)
         metrics_path = write_model_metrics(metrics, args.results_dir)
         print(metrics_path)
@@ -198,13 +203,11 @@ def main():
             print(prediction_path)
         return
 
-    trial_data = args.data or "data/ps3_d_trial.parquet"
+    frame = prepare_model_data(input_frame)
     if args.cv_only:
-        train = pd.read_parquet(trial_data, filters=[("sample", "==", "train")])
-        compare_variants(train)
+        compare_variants(frame.loc[frame["sample"].eq("train")])
         return
 
-    frame = pd.read_parquet(trial_data)
     train = frame.loc[frame["sample"].eq("train")]
     test = frame.loc[frame["sample"].eq("test")]
     variant = compare_variants(train) if args.compare else args.variant

@@ -1,5 +1,14 @@
 {
   "model": "LightGBM Tweedie tuning",
+  "split": {
+    "method": "deterministic ID hash bucketing",
+    "id_columns": [
+      "IDpol"
+    ],
+    "training_fraction": 0.8,
+    "sample_column": "sample"
+  },
+  "split_fingerprint": "48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881",
   "cv": {
     "method": "KFold",
     "n_splits": 3,
@@ -16,12 +25,12 @@
         "n_estimators": 300
       },
       "fold_weighted_tweedie_deviance": [
-        72.58073984872105,
-        75.32732780121786,
-        73.26391992777828
+        76.41133196874381,
+        73.60359950315706,
+        71.47854719825443
       ],
-      "mean_weighted_tweedie_deviance": 73.72399585923905,
-      "std_weighted_tweedie_deviance": 1.4299261317397793
+      "mean_weighted_tweedie_deviance": 73.83115955671843,
+      "std_weighted_tweedie_deviance": 2.4742532371355255
     },
     {
       "parameters": {
@@ -29,12 +38,12 @@
         "n_estimators": 500
       },
       "fold_weighted_tweedie_deviance": [
-        72.9499012387985,
-        75.76521529919081,
-        73.73423755497612
+        77.35791946632098,
+        74.15897917656062,
+        71.75592413652336
       ],
-      "mean_weighted_tweedie_deviance": 74.14978469765515,
-      "std_weighted_tweedie_deviance": 1.4529307917110805
+      "mean_weighted_tweedie_deviance": 74.42427425980165,
+      "std_weighted_tweedie_deviance": 2.810404602483863
     },
     {
       "parameters": {
@@ -42,12 +51,12 @@
         "n_estimators": 300
       },
       "fold_weighted_tweedie_deviance": [
-        73.1242782975246,
-        75.81938403103977,
-        73.84918192288609
+        77.37948152652098,
+        74.10042554466814,
+        72.0484120754159
       ],
-      "mean_weighted_tweedie_deviance": 74.26428141715014,
-      "std_weighted_tweedie_deviance": 1.3946789671140478
+      "mean_weighted_tweedie_deviance": 74.50943971553501,
+      "std_weighted_tweedie_deviance": 2.688967239871822
     },
     {
       "parameters": {
@@ -55,12 +64,12 @@
         "n_estimators": 500
       },
       "fold_weighted_tweedie_deviance": [
-        73.97937554293976,
-        76.59604402907216,
-        74.61584647929547
+        78.54827783936167,
+        75.44452619533854,
+        73.10672484247843
       ],
-      "mean_weighted_tweedie_deviance": 75.0637553504358,
-      "std_weighted_tweedie_deviance": 1.3646264174543357
+      "mean_weighted_tweedie_deviance": 75.69984295905955,
+      "std_weighted_tweedie_deviance": 2.7297462779258415
     },
     {
       "parameters": {
@@ -68,12 +77,12 @@
         "n_estimators": 300
       },
       "fold_weighted_tweedie_deviance": [
-        73.93980166520888,
-        76.56836994513809,
-        74.73625889130713
+        78.53058315559751,
+        75.22143155065315,
+        72.60545626281994
       ],
-      "mean_weighted_tweedie_deviance": 75.0814768338847,
-      "std_weighted_tweedie_deviance": 1.3478591808755913
+      "mean_weighted_tweedie_deviance": 75.45249032302354,
+      "std_weighted_tweedie_deviance": 2.9693136060537584
     },
     {
       "parameters": {
@@ -81,20 +90,20 @@
         "n_estimators": 500
       },
       "fold_weighted_tweedie_deviance": [
-        75.73050845134517,
-        78.07300104648453,
-        76.56947260494175
+        80.28432269317378,
+        77.4427795282076,
+        74.92170147204394
       ],
-      "mean_weighted_tweedie_deviance": 76.79099403425715,
-      "std_weighted_tweedie_deviance": 1.1868536966724834
+      "mean_weighted_tweedie_deviance": 77.54960123114176,
+      "std_weighted_tweedie_deviance": 2.6829060265859757
     }
   ],
   "baseline_cv_fold_deviances": [
-    73.1242782975246,
-    75.81938403103977,
-    73.84918192288609
+    77.37948152652098,
+    74.10042554466814,
+    72.0484120754159
   ],
-  "baseline_cv_mean_deviance": 74.26428141715014,
+  "baseline_cv_mean_deviance": 74.50943971553501,
   "selected_parameters": {
     "learning_rate": 0.03,
     "n_estimators": 300

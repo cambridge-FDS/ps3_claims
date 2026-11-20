@@ -8,10 +8,11 @@
     "training_fraction": 0.8,
     "sample_column": "sample"
   },
-  "train_rows": 542605,
-  "test_rows": 135408,
-  "train_weighted_tweedie_deviance": 66.42533419375171,
-  "test_weighted_tweedie_deviance": 74.13805004886386,
+  "split_fingerprint": "48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881",
+  "train_rows": 542286,
+  "test_rows": 135727,
+  "train_weighted_tweedie_deviance": 66.412966158443,
+  "test_weighted_tweedie_deviance": 74.29163857609136,
   "target": "PurePremium",
   "target_definition": "ClaimAmountCut / Exposure",
   "weights": "Exposure",
@@ -32,9 +33,9 @@
   },
   "selection_method": "3-fold CV within the training sample; selected by mean Exposure-weighted validation Tweedie deviance",
   "cross_validation": {
-    "baseline_mean_weighted_tweedie_deviance": 74.26428141715014,
-    "selected_mean_weighted_tweedie_deviance": 73.72399585923905,
-    "improvement_over_baseline": 0.5402855579110906,
+    "baseline_mean_weighted_tweedie_deviance": 74.50943971553501,
+    "selected_mean_weighted_tweedie_deviance": 73.83115955671843,
+    "improvement_over_baseline": 0.6782801588165768,
     "n_splits": 3,
     "random_state": 42
   },
@@ -53,11 +54,11 @@
       "n_jobs": -1,
       "verbosity": -1
     },
-    "baseline_train_weighted_tweedie_deviance": 64.54578910743517,
-    "baseline_test_weighted_tweedie_deviance": 74.6693871177049
+    "baseline_train_weighted_tweedie_deviance": 64.57727404223546,
+    "baseline_test_weighted_tweedie_deviance": 74.75133249936773
   },
   "overfit_check": {
-    "train_test_deviance_gap": 7.712715855112151,
+    "train_test_deviance_gap": 7.87867241764836,
     "interpretation": "Compare the training deviance with both CV validation deviance and held-out test deviance; a much lower training value indicates a gap that may reflect overfitting."
   }
 }

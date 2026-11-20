@@ -22,6 +22,7 @@ from analyses.lgbm_baseline import (
     TWEEDIE_POWER,
     WEIGHT,
     build_lgbm_pipeline,
+    policy_split_fingerprint,
     predict_pure_premium,
 )
 from ps3.data import create_sample_column, load_transform
@@ -244,9 +245,11 @@ def run_lgbm_tuning(
     baseline_train_prediction = predict_pure_premium(baseline_model, X_train)
     baseline_test_prediction = predict_pure_premium(baseline_model, X_test)
 
+    split_fingerprint = policy_split_fingerprint(data)
     cv_results = {
         "model": "LightGBM Tweedie tuning",
         "split": split_info,
+        "split_fingerprint": split_fingerprint,
         "cv": {
             "method": "KFold",
             "n_splits": CV_SPLITS,
@@ -266,6 +269,7 @@ def run_lgbm_tuning(
     metrics = {
         "model": "LightGBM Tweedie tuned",
         "split": split_info,
+        "split_fingerprint": split_fingerprint,
         "train_rows": int(train_mask.sum()),
         "test_rows": int(test_mask.sum()),
         "train_weighted_tweedie_deviance": weighted_tweedie_deviance(
