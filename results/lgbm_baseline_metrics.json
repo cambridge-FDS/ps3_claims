@@ -1,0 +1,35 @@
+{
+  "model": "LightGBM Tweedie baseline",
+  "split": {
+    "method": "deterministic ID hash bucketing",
+    "id_columns": [
+      "IDpol"
+    ],
+    "training_fraction": 0.8,
+    "sample_column": "sample"
+  },
+  "split_fingerprint": "48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881",
+  "train_rows": 542286,
+  "test_rows": 135727,
+  "train_weighted_tweedie_deviance": 64.57727404223546,
+  "test_weighted_tweedie_deviance": 74.75133249936773,
+  "target": "PurePremium",
+  "target_definition": "ClaimAmountCut / Exposure",
+  "weights": "Exposure",
+  "tweedie_power": 1.5,
+  "parameters": {
+    "objective": "tweedie",
+    "tweedie_variance_power": 1.5,
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "max_depth": -1,
+    "min_child_samples": 20,
+    "colsample_bytree": 0.9,
+    "reg_lambda": 0.0,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": -1
+  },
+  "selection_method": "Initial fixed-parameter baseline; no hyperparameter tuning"
+}
