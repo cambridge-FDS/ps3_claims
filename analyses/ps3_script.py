@@ -10,11 +10,10 @@ from sklearn.metrics import auc
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, SplineTransformer, StandardScaler
-
 from ps3.data import create_sample_split, load_transform
 
-# %%
-# load data
+# %% 
+# load data from openml
 df = load_transform()
 
 # %%
@@ -23,10 +22,11 @@ weight = df["Exposure"].values
 df["PurePremium"] = df["ClaimAmountCut"] / df["Exposure"]
 y = df["PurePremium"]
 # TODO: Why do you think, we divide by exposure here to arrive at our outcome variable?
-
+# Dividing by exposure converts the observed claim amount into an annual rate,
+# so policies observed for different lengths of time can be compared.
 
 # TODO: use your create_sample_split function here
-# df = create_sample_split(...)
+df = create_sample_split(df, "IDpol")
 train = np.where(df["sample"] == "train")
 test = np.where(df["sample"] == "test")
 df_train = df.iloc[train].copy()
@@ -86,15 +86,20 @@ print(
 
 # Let's put together a pipeline
 numeric_cols = ["BonusMalus", "Density"]
+numeric_transformer = Pipeline(
+    steps=[
+        ("scaler", StandardScaler()), 
+        ("spline", SplineTransformer(knots="quantile"))]
+)
 preprocessor = ColumnTransformer(
     transformers=[
-        # TODO: Add numeric transforms here
+        ("numeric", numeric_transformer, numeric_cols),
         ("cat", OneHotEncoder(sparse_output=False, drop="first"), categoricals),
     ]
 )
 preprocessor.set_output(transform="pandas")
 model_pipeline = Pipeline(
-    # TODO: Define pipeline steps here
+    steps=[("preprocessor", preprocessor), ("estimator", t_glm1)]
 )
 
 # let's have a look at the pipeline
@@ -144,6 +149,19 @@ print(
 # 1: Define the modelling pipeline. Tip: This can simply be a LGBMRegressor based on X_train_t from before.
 # 2. Make sure we are choosing the correct objective for our estimator.
 
+model_pipeline = Pipeline(
+    steps=[
+        (
+            "estimate",
+            LGBMRegressor(
+                objective="tweedie",
+                tweedie_variance_power=1.5,
+                random_state=42,
+            ),
+        )
+    ]
+)
+
 model_pipeline.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
 df_test["pp_t_lgbm"] = model_pipeline.predict(X_test_t)
 df_train["pp_t_lgbm"] = model_pipeline.predict(X_train_t)
@@ -170,8 +188,17 @@ print(
 # Note: Typically we tune many more parameters and larger grids,
 # but to save compute time here, we focus on getting the learning rate
 # and the number of estimators somewhat aligned -> tune learning_rate and n_estimators
-cv = GridSearchCV(
 
+param_grid = {
+    "estimate__learning_rate": [0.01, 0.05, 0.1],
+    "estimate__n_estimators": [100, 200, 300],
+}
+cv = GridSearchCV(
+    model_pipeline,
+    param_grid,
+    cv=5,
+    scoring="neg_mean_deviance_score",
+    verbose=1,
 )
 cv.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
 
