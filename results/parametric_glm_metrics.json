@@ -1,0 +1,34 @@
+{
+  "model": "parametric_glm",
+  "model_name": "Improved parametric GLM",
+  "split": {
+    "method": "deterministic ID hash bucketing",
+    "id_columns": [
+      "IDpol"
+    ],
+    "training_fraction": 0.8,
+    "sample_column": "sample"
+  },
+  "split_fingerprint": "2fac3d388008e7f94443efa1f2e2fa3df35480d27f6fc1626dfd8486de79bb5e",
+  "n_train": 542605,
+  "n_test": 135408,
+  "train_deviance": 73.53019771160727,
+  "test_deviance": 74.53415768330974,
+  "test_actual_claim_amount": 9978366.809999999,
+  "test_predicted_claim_amount": 9840562.742205415,
+  "target": "PurePremium",
+  "target_definition": "ClaimAmountCut / Exposure",
+  "weight": "Exposure",
+  "tweedie_power": 1.5,
+  "parameters": {
+    "family": "TweedieDistribution",
+    "polynomial_degree": {
+      "BonusMalus": 2,
+      "VehPower": 2
+    },
+    "alpha": 0.0,
+    "solver": "irls-ls",
+    "fit_intercept": true
+  },
+  "selection_method": "Quadratic terms selected for stable predictions in the sparse BonusMalus tail."
+}
