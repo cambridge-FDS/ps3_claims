@@ -75,6 +75,9 @@ def read_model_metrics(results_dir):
     rows = []
     for model, label in MODEL_NAMES.items():
         path = results_dir / f"{model}_metrics.json"
+        evaluated = results_dir / "evaluated" / path.name
+        if evaluated.is_file():
+            path = evaluated
         recorded = not path.is_file() and model in RECORDED_LIGHTGBM
         if recorded:
             filename, published_name, owner = RECORDED_LIGHTGBM[model]
@@ -86,7 +89,7 @@ def read_model_metrics(results_dir):
             source = f"{path.name} ({owner}'s recorded run)"
         else:
             row = json.loads(path.read_text(encoding="utf-8"))
-            source = path.name
+            source = str(path.relative_to(results_dir))
         if not isinstance(row, dict) or set(METRIC_COLUMNS).difference(row):
             raise ValueError(f"Incomplete model metrics in {path.name}")
         if (row["model"], row["model_name"]) != (model, label):
@@ -123,15 +126,19 @@ def read_model_metrics(results_dir):
             value = row[key]
             if type(value) not in (float, int) or not np.isfinite(value) or value < 0:
                 raise ValueError(f"Invalid {key} in {path.name}")
-        rows.append(dict(row, source=source))
+        rows.append(dict(row, source=source, verification_status=(
+            "historical" if recorded else row.get("verification_status", "not_revalidated")
+        )))
 
     if not rows:
         raise FileNotFoundError(f"No model metrics in {results_dir}")
-    comparison = pd.DataFrame(rows, columns=[*METRIC_COLUMNS, "source"])
+    comparison = pd.DataFrame(rows)
     if (comparison[["n_train", "n_test"]].nunique() != 1).any():
         raise ValueError("Available metrics use different train/test sample counts")
     if comparison["split_fingerprint"].nunique() > 1:
         raise ValueError("Available metrics use different policy assignments")
+    if "data_fingerprint" in comparison and comparison["data_fingerprint"].nunique() > 1:
+        raise ValueError("Available metrics use different data")
     return comparison
 
 
@@ -141,11 +148,21 @@ def write_metrics_csv(results_dir="results", *, gini_by_model=None):
     comparison["test_minus_train_deviance"] = (
         comparison["test_deviance"] - comparison["train_deviance"]
     )
-    if gini_by_model:
-        comparison["test_gini"] = comparison["model_name"].map(gini_by_model)
-    for key in ("parameters", "split"):
+    actual = pd.to_numeric(comparison["test_actual_claim_amount"], errors="coerce")
+    predicted = pd.to_numeric(comparison["test_predicted_claim_amount"], errors="coerce")
+    comparison["relative_claim_amount_error"] = (predicted - actual) / actual.where(actual > 0)
+    published_gini = comparison.get("test_gini", pd.Series(np.nan, index=comparison.index))
+    fresh_gini = comparison["model_name"].map(gini_by_model or {})
+    comparison["test_gini"] = fresh_gini.combine_first(published_gini)
+    comparison["gini_status"] = np.where(
+        fresh_gini.notna(), "recomputed_from_predictions",
+        np.where(published_gini.notna(), "recorded_from_prior_prediction_validation", "unavailable"),
+    )
+    for key in comparison.columns:
+        if key not in {"parameters", "split", "fit_diagnostics", "deviance_crosscheck", "cross_validation", "selected_parameters", "run_provenance"}:
+            continue
         comparison[key] = comparison[key].map(
-            lambda value: json.dumps(value, sort_keys=True, allow_nan=False)
+            lambda value: json.dumps(value, sort_keys=True, allow_nan=False) if isinstance(value, dict) else value
         )
     path = Path(results_dir) / "metrics.csv"
     comparison.to_csv(path, index=False)
@@ -226,6 +243,10 @@ def save_comparison(train, test, results_dir):
         score = evaluate_sample(test, series)
         if not np.isclose(score["deviance"], row.test_deviance, rtol=1e-8, atol=1e-8):
             raise ValueError(f"{path.name} disagrees with the recorded test deviance")
+        for field in ("actual_claim_amount", "predicted_claim_amount"):
+            recorded_value = getattr(row, f"test_{field}")
+            if pd.notna(recorded_value) and not np.isclose(score[field], recorded_value, rtol=1e-8, atol=1e-8):
+                raise ValueError(f"{path.name} disagrees with recorded claim totals")
         predictions[row.model] = series
 
     available_models = set(metrics["model"])
@@ -243,6 +264,15 @@ def save_comparison(train, test, results_dir):
 
     curves = comparison_curves(test, predictions)
     gini = {name: values[2] for name, values in curves.items()}
+    # Persist only our evaluated records, after verifying the actual predictions.
+    # This keeps an offline JSON summary from erasing the published Gini values.
+    for model in predictions:
+        evaluated = results_dir / "evaluated" / f"{model}_metrics.json"
+        if evaluated.is_file():
+            record = json.loads(evaluated.read_text(encoding="utf-8"))
+            record["test_gini"] = gini[MODEL_NAMES[model]]
+            record["gini_definition"] = "policy-count axis; tied predictions grouped; 1 - 2*AUC; unnormalized"
+            evaluated.write_text(json.dumps(record, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     fig = plot_comparison(curves)
     path = results_dir / "lorenz_comparison.png"
     fig.savefig(path, dpi=140, bbox_inches="tight")

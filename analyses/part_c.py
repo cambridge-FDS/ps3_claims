@@ -151,6 +151,8 @@ def model_metrics(
         "test_deviance": test_scores["deviance"],
         "test_actual_claim_amount": test_scores["actual_claim_amount"],
         "test_predicted_claim_amount": test_scores["predicted_claim_amount"],
+        "train_actual_claim_amount": train_scores["actual_claim_amount"],
+        "train_predicted_claim_amount": train_scores["predicted_claim_amount"],
         "target": TARGET,
         "target_definition": TARGET_DEFINITION,
         "weight": WEIGHT,
@@ -205,6 +207,19 @@ def run_baseline(frame):
         },
         selection_method="Fixed settings from the instructor's PS3 script",
     )
+    distribution = model.family
+    metrics["fit_diagnostics"] = {"iterations": int(model.n_iter_), "max_iter": model.max_iter}
+    metrics["deviance_crosscheck"] = {}
+    for label, sample, predictions in (
+        ("train", train, train_predictions), ("test", test, test_predictions)
+    ):
+        glum_score = float(distribution.deviance(
+            sample[TARGET].to_numpy(), predictions.to_numpy(),
+            sample_weight=sample[WEIGHT].to_numpy(),
+        ) / sample[WEIGHT].sum())
+        if not np.isclose(glum_score, metrics[f"{label}_deviance"], rtol=1e-10):
+            raise ValueError("glum and sklearn deviance disagree")
+        metrics["deviance_crosscheck"][label] = glum_score
     coefficients = pd.Series(
         np.concatenate(([model.intercept_], model.coef_)),
         index=["intercept", *model.feature_names_],
@@ -252,4 +267,29 @@ def run_initial_lightgbm(frame):
             atol=1e-10,
         ):
             raise ValueError(f"A's LightGBM {sample} deviance disagrees with shared evaluation")
+    return metrics, test_predictions
+
+
+def run_tuned_lightgbm(frame, audit_dir):
+    """Execute E's unchanged training-only CV and score its final refit jointly."""
+    from analyses.lgbm_baseline import predict_pure_premium
+    from analyses.lgbm_tuning import run_lgbm_tuning
+
+    train, test = sample_frames(frame)
+    audit_dir = Path(audit_dir)
+    model, cv, recorded = run_lgbm_tuning(
+        frame, cv_results_path=audit_dir / "lgbm_tuning_cv.json",
+        metrics_path=audit_dir / "lgbm_tuning_metrics.json", split_metadata=SPLIT,
+    )
+    train_predictions = pd.Series(predict_pure_premium(model, train), index=train.index)
+    test_predictions = pd.Series(predict_pure_premium(model, test), index=test.index)
+    metrics = model_metrics(
+        "lightgbm_tuned", train, test, train_predictions, test_predictions,
+        parameters=recorded["parameters"], selection_method=recorded["selection_method"],
+    )
+    for label in ("train", "test"):
+        if not np.isclose(metrics[f"{label}_deviance"], recorded[f"{label}_weighted_tweedie_deviance"], rtol=1e-10):
+            raise ValueError("E's deviance disagrees with shared evaluation")
+    metrics["cross_validation"] = recorded["cross_validation"]
+    metrics["selected_parameters"] = cv["selected_parameters"]
     return metrics, test_predictions
