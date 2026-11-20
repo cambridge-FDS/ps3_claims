@@ -1,31 +1,31 @@
-# Final common model comparison — 20 November 2026
+# Four-model comparison on the merged normalized-ID split — 20 November 2026
 
-All four member implementations were refitted locally using the instructor OpenML loader, the shared PurePremium target, Exposure weights and Tweedie power 1.5. There are 542,605 training and 135,408 test policies. The test clipped claim amount is 9,978,366.81. No member model method was changed by C.
+All four models were refitted together after Ex1 PR #10 merged the normalized-ID split into main (76d9970; main merge c5b3b6b). The former PR #11 split is superseded for this report: 217,325 policy assignments changed. No metric or curve from the former split is mixed into the current comparison. The same 678,013 instructor-transformed policies are used, with 542,286 training and 135,727 test policies. Test clipped claims total 10,041,931.48. The target is ClaimAmountCut / Exposure, weights are Exposure and Tweedie power is 1.5.
 
 | Model | Train deviance | Test deviance | Test − train | Test Gini | Predicted test claims | Relative claim error |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Tweedie GLM benchmark | 73.525995 | 74.735057 | 1.209062 | 0.232849 | 9,922,993.11 | -0.55% |
-| Improved parametric GLM | 73.530198 | 74.534158 | 1.003960 | 0.238912 | 9,840,562.74 | -1.38% |
-| Initial LightGBM | 64.545789 | 74.669387 | 10.123598 | 0.256496 | 8,193,846.90 | -17.88% |
-| Tuned LightGBM | 66.425334 | 74.138050 | 7.712716 | 0.267243 | 8,496,582.42 | -14.85% |
+| Tweedie GLM benchmark | 73.485505 | 74.897049 | 1.411544 | 0.256255 | 9,988,382.48 | -0.53% |
+| Improved parametric GLM | 73.466040 | 74.814510 | 1.348469 | 0.257554 | 9,957,587.03 | -0.84% |
+| Initial LightGBM | 64.577274 | 74.751332 | 10.174058 | 0.273634 | 8,324,414.59 | -17.10% |
+| Tuned LightGBM | 66.412966 | 74.291639 | 7.878672 | 0.274197 | 8,605,090.30 | -14.31% |
 
-## Interpretation
+## Interpretation and limitations
 
-Tuned LightGBM has the lowest observed test deviance and highest Gini in this comparison. Initial LightGBM and the benchmark GLM have very similar test deviances. No confidence interval or significance test was computed, so small differences should not be interpreted as established superiority.
+Tuned LightGBM has the lowest observed test deviance. Its Gini is only slightly above the initial LightGBM’s; no uncertainty or significance analysis was performed. D’s quadratic GLM improves slightly over the benchmark GLM in observed deviance, while both have very similar risk ranking. These differences should not be interpreted as statistically established superiority.
 
-The initial LightGBM train–test gap is 10.123598 versus 7.712716 after tuning. E selected learning_rate=0.03 and n_estimators=300 using training-only three-fold CV: mean validation deviance 73.723996 versus 74.264281 for initial parameters. The larger tree-model gaps are consistent with greater in-sample flexibility; a gap alone does not prove overfitting. Every fold fitted a fresh full preprocessing/model pipeline. All 18 reproduced fold scores match E’s original results within 5.7e-14.
+The initial LightGBM train–test gap is 10.174058, compared with 7.878672 after tuning. E’s unchanged full training-only three-fold CV selected learning_rate=0.03 and n_estimators=300, with mean validation deviance 73.831160 versus 74.509440 for the initial parameters. Each fold fits a fresh complete preprocessing/model pipeline; the selected model is refitted on all current training policies. These CV numbers differ from E’s published historical report because the training membership changed. Historical scores were not reused or represented as the present run.
 
-The benchmark GLM has the smallest absolute aggregate claim error here (−0.55%); the quadratic GLM is also close (−1.38%). Both LightGBMs underpredict total claims substantially (−17.88% and −14.85%). Aggregate totals measure only one aspect of calibration and do not establish calibration within risk groups. The GLMs provide coefficients and explicit feature transforms; trees capture nonlinearities/interactions with less direct interpretation.
+The GLMs have much smaller aggregate test claim bias (approximately −0.53% benchmark and −0.84% quadratic) than the LightGBMs (−17.10% initial, −14.31% tuned). Aggregate totals are only one aspect of calibration and do not prove calibration within risk groups. The GLMs retain explicit coefficients/transforms; boosted trees offer nonlinearities and interactions with less direct interpretation. Large train–test gaps are diagnostics, not proof of overfitting by themselves.
 
-**D selection limitation:** D’s handover notes describe choosing the quadratic specification after inspecting test-tail behaviour and alternatives. Its test score is exploratory, not untouched validation of the model-selection procedure. No test leakage was found in the actual training preprocessing, but this selection-stage reuse cannot be undone by refitting. Independent validation would be needed for an unbiased model-selection comparison. C preserves D’s handed-over specification and reports this limitation rather than selecting another model from the test scores.
+**D selection limitation:** D chose the quadratic specification after inspecting test-tail behaviour on the earlier split of this same dataset. Repartitioning and refitting does not make this an independent model-selection test. D’s score remains exploratory and would need genuinely independent validation for an unbiased selection comparison. C preserves D’s handed-over method instead of choosing another specification using the new test scores. The actual preprocessing and E’s CV remain training-only.
 
-## Curves and metric conventions
+## Lorenz/Gini conventions
 
-The figure ranks each model’s predicted pure premiums from low to high; the horizontal axis is fraction of policies, and the vertical axis is cumulative observed PurePremium × Exposure, i.e. ClaimAmountCut. Curves start at (0,0), group tied predictions and finish at (1,1). Gini is unnormalized 1−2×AUC. Random is the diagonal. The teacher’s Oracle ranks by observed PurePremium; with unequal exposures it is a reference curve, not necessarily the mathematical maximum of a policy-count Gini.
+Each model is ranked by predicted pure premium. The horizontal axis is fraction of policies; the vertical axis accumulates observed PurePremium × Exposure, i.e. ClaimAmountCut. Curves start at (0,0), group tied predictions and end at (1,1). Gini is unnormalized 1−2×AUC. Random is the diagonal. The teacher’s Oracle ranks observed PurePremium; with unequal exposures it is a reference, not necessarily the ordering that maximizes policy-count Gini. The final figure includes all four verified models plus Oracle and Random.
 
-`verification_status` labels newly fitted outputs. `gini_status` distinguishes values recomputed from policy predictions from prior prediction-validated values retained in offline summaries. E’s published historical outputs remain unchanged; this report uses the independently fitted common outputs in `results/evaluated/`.
+`verification_status` identifies locally refitted records. `gini_status` distinguishes newly recomputed values from previously prediction-validated values retained by an offline summary. The old member-published JSONs remain historical records; the authoritative current outputs are in `results/evaluated/`.
 
-## Reproduction and evidence
+## Reproduce and verify
 
 ```bash
 python -m analyses.ps3_script all --save-data data/shared_final.parquet
@@ -34,20 +34,20 @@ python -m pytest
 pre-commit run --all-files
 ```
 
-Choose a new cache filename if it exists. The successful local run used `data/final_shared_20261120.parquet` and the independent compare used that cache. An earlier stalled OpenML read was interrupted; the retry succeeded with the bounded-read entry point. The loader and its transformations are unchanged. Raw data, caches, logs, per-policy predictions and previous-result archives are local only. Prior outputs are archived under `data/run_backups/` before replacement.
+Choose a new cache filename if it exists. The instructor loader was used successfully in this session after a stalled connection and retry. The final normalized-split run reused exactly that prepared data, reconstructed membership with the new official function and saved `data/final_shared_normalized_20261120.parquet`. Its separate cached compare run independently verified the final table and figure. Prior results are archived under gitignored `data/run_backups/`; per-policy predictions, caches, raw data and logs are local only.
 
-GLM converged in 3 iterations (limit 100), with convergence warnings treated as errors. Both sample deviances were checked against glum; the independent test rescore checked all four models against glum as well as sklearn, exact ID alignment, target equality and positive weights/predictions. The separate cached `compare` run reproduced the report and figure. An offline JSON summary also retained all four verified Ginis.
+GLM converged in 3 iterations (limit 100), with convergence warnings treated as errors. Both GLM sample scores agree between sklearn and glum. Independent test rescoring checked all four models against both deviance implementations, the exact policy-ID order/membership, positive weights/predictions, target equality, fingerprints and aggregate claim totals. An offline summary retained all four verified Ginis.
 
-Full suite: **53 passed, no skipped tests** (including 27 C tests and B’s 12 Winsorizer tests). Pre-commit checks pass. Matplotlib emits dependency deprecation warnings, not model convergence warnings. The previously failing placeholder tests were replaced through integration of B’s existing main commits, without modifying B’s implementation or deleting tests.
+Full suite after the official split update: **57 passed, no skipped tests**, including 27 C tests, 12 Winsorizer tests and 17 split tests. Pre-commit checks pass. Matplotlib emits dependency deprecation warnings, not model convergence warnings. B’s original main implementation/tests replace the old placeholders through their existing Git history. The integration additionally fixes loss of verified Ginis during offline or partial summaries.
 
-Split fingerprint: `2fac3d388008e7f94443efa1f2e2fa3df35480d27f6fc1626dfd8486de79bb5e`.
+Split fingerprint: `48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881`.
 
-Data fingerprint: `985313e2c0d33b3c75a831940d45f3321008e7a3e109eb6fc7e8eb55afca7def`.
+Data fingerprint: `fefd1e42c487594b88df12032cef35d3599b189b4ff0b06ae3ddab48006b432e`.
 
-Run provenance in each evaluated JSON records source-file hashes, package versions, timestamp and source commit `f8c03f9`. This distinguishes the executed implementation from later documentation-only commits.
+Each evaluated JSON records source-file hashes, versions, timestamp and source commit `350f055db87ed8c399307c81f1bc4dbd3c49ebb0`. Later report-only commits do not change the model specification.
 
-## Ownership and integration dependencies
+## Ownership and PR dependencies
 
-A: split and initial LightGBM (#11, 83f6f88). B: Winsorizer already on main (23569fd). E: CV/tuning (#12, 8e9340f). D: quadratic GLM (#14, 54558d1). These source files are byte-for-byte identical to their owner branches. C supplies shared orchestration, adapters, validation, tests and the common results.
+A: split and initial LightGBM (#10/#11). B: Winsorizer on main. E: unchanged tuning/CV (#12, 8e9340f). D: unchanged quadratic GLM (#14, 54558d1). All member implementations match their owner branches; the splitter matches merged main’s normalized version. C owns the shared orchestration, evaluation adapters, validation, tests and combined outputs.
 
-`integration/part-c-dependencies` is a review base containing those histories. PR #13 targets that base to keep C’s diff focused while member PRs remain open. It is not a merge into main. The repository owner must coordinate member PR merges and later retarget C to finalized main, then rerun if data/split/model code changes. No new D handover is required for this comparison; D’s delivered model and its selection limitation are now integrated.
+`integration/part-c-dependencies` is the review base containing the member histories and the merged Ex1 fix. PR #13 targets it to keep C’s diff focused while member PRs remain open. It is not a merge into main. The repository owner must coordinate the pending member PRs and later retarget C to finalized main; rerun if the data, split or model sources change. The D handover is available and integrated, with its selection limitation explicit.

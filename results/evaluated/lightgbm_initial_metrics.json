@@ -9,15 +9,15 @@
     "training_fraction": 0.8,
     "sample_column": "sample"
   },
-  "split_fingerprint": "2fac3d388008e7f94443efa1f2e2fa3df35480d27f6fc1626dfd8486de79bb5e",
-  "n_train": 542605,
-  "n_test": 135408,
-  "train_deviance": 64.54578910743517,
-  "test_deviance": 74.66938711770491,
-  "test_actual_claim_amount": 9978366.81,
-  "test_predicted_claim_amount": 8193846.899935347,
-  "train_actual_claim_amount": 39323829.239999995,
-  "train_predicted_claim_amount": 32918781.03854138,
+  "split_fingerprint": "48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881",
+  "n_train": 542286,
+  "n_test": 135727,
+  "train_deviance": 64.57727404223547,
+  "test_deviance": 74.75133249936773,
+  "test_actual_claim_amount": 10041931.480000002,
+  "test_predicted_claim_amount": 8324414.588112476,
+  "train_actual_claim_amount": 39260264.57,
+  "train_predicted_claim_amount": 32957895.713363785,
   "target": "PurePremium",
   "target_definition": "ClaimAmountCut / Exposure",
   "weight": "Exposure",
@@ -37,10 +37,10 @@
     "verbosity": -1
   },
   "selection_method": "Initial fixed-parameter baseline; no hyperparameter tuning",
-  "data_fingerprint": "985313e2c0d33b3c75a831940d45f3321008e7a3e109eb6fc7e8eb55afca7def",
+  "data_fingerprint": "fefd1e42c487594b88df12032cef35d3599b189b4ff0b06ae3ddab48006b432e",
   "run_provenance": {
-    "timestamp_utc": "2026-11-20T01:00:37.302680+00:00",
-    "git_head_at_run": "f8c03f9a5390c45b3057e1f6f1441554c3c8c1f0",
+    "timestamp_utc": "2026-11-20T01:07:27.900413+00:00",
+    "git_head_at_run": "350f055db87ed8c399307c81f1bc4dbd3c49ebb0",
     "source_sha256": {
       "analyses/lgbm_baseline.py": "933baf29da3948a261f477aaa5793992773f07cdfc08558c4d8fa0a76fb6262f",
       "analyses/lgbm_tuning.py": "53ad3a88c2c7b6b96d1a0c6c75ca7611cd3a51f00f9d4dddb5c9a1675d55cd74",
@@ -51,7 +51,7 @@
       "ps3/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "ps3/data/__init__.py": "12b7356888699d224864be07e2b53ef5ee5592c86ce54734f24084246cdccdc0",
       "ps3/data/_load_transform.py": "d062b7c97e1407eb936673fd1eaa5692a3c20355065b4f0ed36df4dfc85b2317",
-      "ps3/data/_sample_split.py": "9b94b42b44bb5afd707e3002c6f11856cd3aff13abde450a3adb5fedb16bab0b",
+      "ps3/data/_sample_split.py": "c2a39960317b5d60b10c828ea4a70e6b8b2d2772cf8e7dd7dd5a3c5f5e99ab82",
       "ps3/preprocessing/__init__.py": "7a6d79f240b15689e45b904b3bdcdd0d198c9fe5e2814d90c1efe0071443fbc1",
       "ps3/preprocessing/_winsorizer.py": "2cb619f33f8d7a6ebb357a03049b3f9ab51d401f7fc2f1bb7e83db8f49c1aa44"
     },
@@ -65,6 +65,6 @@
     }
   },
   "verification_status": "locally_trained",
-  "test_gini": 0.2564961563435837,
+  "test_gini": 0.2736344279681432,
   "gini_definition": "policy-count axis; tied predictions grouped; 1 - 2*AUC; unnormalized"
 }

@@ -143,6 +143,12 @@ PRs are pending; it is not a merge into `main`. C's additional changes are the
 shared orchestration, evaluation, tests and common report. No member model method
 is reimplemented by the integration layer.
 
+The final comparison follows the normalized-ID split merged in Ex1 PR #10
+(`76d9970`, main merge `c5b3b6b`). This changes policy membership relative to the
+earlier PR #11 split. All four models were rerun together; the member-published
+historical JSONs retain their original split and are not substituted into the
+new comparison. Use the common evaluated records and exact fingerprints.
+
 For an independent rescore without downloading OpenML again, explicitly save a
 prepared local cache on the first run (choose a new cache filename if it exists):
 
