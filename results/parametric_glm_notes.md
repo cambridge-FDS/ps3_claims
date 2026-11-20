@@ -23,6 +23,17 @@ Compare train and test deviance, assess variation across the validation folds, a
 
 The capped spline uses the training 99th percentile (106) and has the best training-only CV mean (73.9228) among the D variants. The earlier test-tail findings prompted the cap and influenced the handoff choice. Repartitioning this same dataset does not establish independent evidence for choosing a different specification.
 
+### Two-policy tail stress test
+
+The two policies above the old training maximum, with `BonusMalus` 228 and 230, are both in the current training set. The current test maximum is 198. To check sensitivity, we removed only those two policies from the current training set, refitted both models, and predicted the pair again. The training maximum fell from 230 to 218. The table shows predicted claim amounts after multiplying pure premium by each policy's exposure.
+
+| `BonusMalus` | Observed claim | Spline, full fit | Spline, pair removed | Quadratic, full fit | Quadratic, pair removed |
+|---:|---:|---:|---:|---:|---:|
+| 228 | 1,128.12 | 1,182.69 | 171,690.39 | 216.99 | 213.64 |
+| 230 | 0.00 | 9,522.87 | 611,858.11 | 742.18 | 730.69 |
+
+The spline's fixed-test deviance fell slightly, from 74.6672 to 74.6626. The test policies stop well below the region where predictions spiked, so this average misses the instability. Among the six test policies with `BonusMalus` of at least 175, the exposure-weighted deviance was 206.0 for the full spline fit and 95.9 for the full quadratic fit. We retain the quadratic handoff because its predictions for the two stress-test policies changed by less than 2%, while the spline's rose to about 145 and 64 times their original values.
+
 ## Reproduce and integrate
 
 With A's shared split and C's `analyses.part_c` available, run from the repository root:
