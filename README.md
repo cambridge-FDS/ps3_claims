@@ -68,27 +68,115 @@ loader does not automatically read from that directory. Do not commit raw data, 
 environments, model files or large per-policy predictions. Small metrics files and necessary
 figures can go in `results/`.
 
-The main analysis entry point is:
+## Exercise 3 modelling
+
+Run commands from the repository root in the project environment:
 
 ```bash
-python analyses/ps3_script.py
+python -m analyses.ps3_script check-data
+python -m analyses.ps3_script benchmark
+python -m analyses.ps3_script lightgbm
+python -m analyses.ps3_script parametric
+python -m analyses.ps3_script tuned-lightgbm
+python -m analyses.ps3_script compare
 ```
 
-**Run this command after completing the coursework implementation.** The current scaffold does
-not yet create `sample`; the Winsorizer methods are empty, and the pipelines and search still
-contain TODOs. Running the full script now will stop at unfinished sections. You can first run
-the imports/data-loading cells individually in VS Code, then connect the subsequent stages
-according to the assignments.
+`check-data` validates the data and shows the split counts. The model commands can
+run independently. Use `python -m analyses.ps3_script all` to run all four models,
+including E's complete training-only CV, and compare them after loading the data once.
+Use `python -m analyses.ps3_script metrics`
+to summarize saved metrics without accessing OpenML.
 
-The Ex2 assignment test entry point is:
+`load_model_data()` calls the instructor's `load_transform()` via the shared
+preparation function and uses A's deterministic split with `IDpol` and a training
+fraction of 0.8. Pure premium divides the clipped claim amount by Exposure so
+policies with different periods of coverage share a per-unit-of-time scale.
+Fitting and deviance use Exposure weights. Predicted total claims sum the
+predicted pure premium times Exposure for each test policy.
+
+The benchmark retains the categorical preprocessing, features and GLM settings
+from the instructor's PS3 script. The initial LightGBM calls A's implementation
+with the same prepared frame. Both pre-process and fit using only the training
+sample. The comparison uses Exposure-weighted mean Tweedie deviance at power 1.5.
+
+| Output | Contents |
+| --- | --- |
+| `results/evaluated/tweedie_glm_metrics.json` | Benchmark settings, convergence diagnostics, glum/sklearn cross-check and scores. |
+| `results/evaluated/lightgbm_initial_metrics.json` | A's unchanged model rescored on the common split after a local fit. |
+| `results/evaluated/parametric_glm_metrics.json` | D's unchanged quadratic handoff model, rescored on the common split. |
+| `results/evaluated/lightgbm_tuned_metrics.json` | E's unchanged CV and final refit, rescored on the common split. |
+| `results/lgbm_baseline_metrics.json` | A's initial LightGBM run from PR #11. |
+| `results/lgbm_tuning_metrics.json` | E's tuned LightGBM run from PR #12. Fold scores are in `results/lgbm_tuning_cv.json`. |
+| `results/metrics.csv` | Available scores, train/test gap, verified Gini, claim totals, relative error, sources, verification status and data/split fingerprints. |
+| `results/lorenz_comparison.png` | Test Lorenz curves for models with verified predictions, alongside the oracle and random references. |
+
+A's published JSON supplies the initial LightGBM row. E's published JSON
+supplies the tuned row when the tuning outputs are available.
+The CSV labels each recorded run and checks the shared split settings, sample
+counts, target, weights and Tweedie power. The published runs lack policy
+fingerprints and claim totals. Those CSV fields stay blank until locally scored
+metrics are available.
+The `compare` command checks policy membership and recalculates test deviance
+from each prediction file before plotting. The figure uses the instructor's
+policy-count axis, starts at the origin and groups tied predictions before
+computing unnormalized Gini as `1 - 2 * AUC`. Lower test
+deviance indicates better out-of-sample fit, while higher Gini indicates stronger
+risk ranking. The train–test deviance gap is a diagnostic for generalisation.
+
+D and E can call `model_metrics()` from `analyses.part_c` with the common train and
+test frames and policy-indexed predictions for `parametric_glm` and
+`lightgbm_tuned`. Save their metrics via `write_model_metrics()` and keep each test
+prediction Series in `results/<model>_predictions.csv` with columns `IDpol` and
+`PurePremiumPredicted`. `model_metrics()` verifies the ID-based split before
+recording its metadata. These prediction files are gitignored. For E, use
+`run_lgbm_tuning()` from `analyses.lgbm_tuning` to obtain the selected model, then
+`predict_pure_premium()` from `analyses.lgbm_baseline` on the common test frame.
+Rerun `compare` as model outputs become available.
+
+Run the project tests with `python -m pytest`.
+
+### Reproducing the final integration
+
+The C branch contains A/B/D/E dependencies with their original commit histories.
+`integration/part-c-dependencies` is the PR review base while the separate member
+PRs are pending; it is not a merge into `main`. C's additional changes are the
+shared orchestration, evaluation, tests and common report. No member model method
+is reimplemented by the integration layer.
+
+The final comparison follows the normalized-ID split merged in Ex1 PR #10
+(`76d9970`, main merge `c5b3b6b`). This changes policy membership relative to the
+earlier PR #11 split. All four models were rerun together; the member-published
+historical JSONs retain their original split and are not substituted into the
+new comparison. Use the common evaluated records and exact fingerprints.
+
+For an independent rescore without downloading OpenML again, explicitly save a
+prepared local cache on the first run (choose a new cache filename if it exists):
 
 ```bash
-python -m pytest tests/preprocessing/test_winsorizer.py
+python -m analyses.ps3_script all --save-data data/shared_final.parquet
+python -m analyses.ps3_script compare --data data/shared_final.parquet
 ```
 
-The `assert False` is an instructor-provided test placeholder for B to complete alongside the
-Transformer implementation. The full pytest suite should therefore not currently be used to
-decide whether the environment was installed successfully.
+The cache comes from the same instructor loader. Both commands recreate the ID
+split and require agreement with saved data/split fingerprints and test scores.
+`compare` also checks observed and predicted claim totals. The training command
+records package versions and hashes of executed source files. Existing result
+directories are archived under gitignored `data/run_backups/` before replacement.
+Large policy predictions remain gitignored; E's reproduced raw CV outputs are
+kept under `data/tuning_runs/`, preserving E's published outputs unchanged.
+
+The relative claim error is `(predicted - observed) / observed`; it is undefined
+when observed claims are zero. Gini uses the teacher's policy-count axis and is
+unnormalized. `metrics` summarizes JSON records without revalidating predictions
+and retains previously verified Ginis. `gini_status` distinguishes those saved
+values from values recomputed by `compare`. Use `compare` for the final table and
+figure. Remote reads have a configurable `--network-timeout` (300 seconds per
+socket read by default); this leaves the instructor's transformations unchanged.
+
+D's quadratic specification was selected after test-tail diagnostics, as recorded
+in D's handover notes. Its score is therefore an exploratory comparison, not an
+untouched model-selection test. Independent validation would be needed to remove
+that limitation. See `results/final_comparison.md` for results and interpretation.
 
 ## Directory structure and collaboration
 
@@ -96,14 +184,13 @@ decide whether the environment was installed successfully.
 | --- | --- |
 | `ps3/data/` | Instructor-provided data loader and Ex1 stable split |
 | `ps3/preprocessing/` | Ex2 Winsorizer and shared preprocessing |
-| `analyses/ps3_script.py` | Instructor-provided analysis scaffold, to connect the models later |
-| `tests/` | Basic tests and assignment tests still to be completed |
+| `analyses/ps3_script.py` | Exercise 3 shared input and runnable analysis entry point |
+| `tests/` | Tests for the deterministic split, Winsorizer and shared modelling pipeline |
 | `TEAM_ASSIGNMENTS.md` | A–E responsibilities, dependencies and deliverables for each exercise |
 
-The official Ex1 instructions use `create_sample_column`, while the repository currently
-exports `create_sample_split`. A will reconcile the names during implementation and retain a
-compatible entry point. The Ex3 feature requirements also differ from the script comments;
-see the assignments file.
+`ps3.data.create_sample_column` is the Ex1 split API. The earlier
+`create_sample_split` entry point is still available. For D's improved GLM,
+use the feature requirements in Exercise 3 and the assignments file.
 
 Create your own branch from the latest `main` and submit a PR. Update from `main` after
 prerequisite changes are merged. Keep model modules and outputs separate to reduce concurrent
