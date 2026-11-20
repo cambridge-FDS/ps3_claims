@@ -6,6 +6,7 @@ The fitted model is returned to callers but is deliberately not serialized.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Sequence
@@ -93,6 +94,21 @@ def predict_pure_premium(model: Pipeline, df: pd.DataFrame) -> np.ndarray:
     return np.asarray(model.predict(df[CATEGORICAL_FEATURES + NUMERIC_FEATURES]))
 
 
+def policy_split_fingerprint(data: pd.DataFrame) -> str | None:
+    """Fingerprint the exact assignment when unique integer policy IDs are available."""
+    if "IDpol" not in data:
+        return None
+    ids = data["IDpol"]
+    if not pd.api.types.is_integer_dtype(ids) or ids.isna().any() or not ids.is_unique:
+        return None
+    digest = hashlib.sha256()
+    for label in ("train", "test"):
+        sample_ids = np.sort(ids.loc[data["sample"].eq(label)].to_numpy(dtype="<i8"))
+        digest.update(len(sample_ids).to_bytes(8, "little"))
+        digest.update(sample_ids.tobytes())
+    return digest.hexdigest()
+
+
 def run_lgbm_baseline(
     df: pd.DataFrame,
     id_columns: str | Sequence[str] = "IDpol",
@@ -115,11 +131,32 @@ def run_lgbm_baseline(
         raise KeyError(f"Missing required modelling columns: {missing}")
 
     data = df.copy()
-    if "sample" not in data.columns:
+    supplied_sample = "sample" in data.columns
+    if not supplied_sample:
         data = create_sample_column(data, id_columns, training_frac)
 
     if not data["sample"].isin(["train", "test"]).all():
         raise ValueError("sample must contain only 'train' and 'test' labels")
+
+    split = {
+        "method": "deterministic ID hash bucketing",
+        "id_columns": [id_columns] if isinstance(id_columns, str) else list(id_columns),
+        "training_fraction": float(training_frac),
+        "sample_column": "sample",
+    }
+    if supplied_sample:
+        if all(column in data for column in split["id_columns"]):
+            expected = create_sample_column(
+                data, split["id_columns"], training_frac
+            )["sample"]
+            matches = np.array_equal(data["sample"], expected)
+        else:
+            matches = False
+        if not matches:
+            split = {
+                "method": "provided sample column; provenance not supplied",
+                "sample_column": "sample",
+            }
 
     if TARGET not in data.columns:
         if (data[WEIGHT] <= 0).any():
@@ -157,12 +194,8 @@ def run_lgbm_baseline(
     test_predictions = predict_pure_premium(model, X_test)
     metrics = {
         "model": "LightGBM Tweedie baseline",
-        "split": {
-            "method": "deterministic ID hash bucketing",
-            "id_columns": [id_columns] if isinstance(id_columns, str) else list(id_columns),
-            "training_fraction": float(training_frac),
-            "sample_column": "sample",
-        },
+        "split": split,
+        "split_fingerprint": policy_split_fingerprint(data),
         "train_rows": int(train.sum()),
         "test_rows": int(test.sum()),
         "train_weighted_tweedie_deviance": _weighted_deviance(
