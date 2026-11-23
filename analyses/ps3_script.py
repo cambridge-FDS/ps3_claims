@@ -1,4 +1,4 @@
-"""Run the PS3 Exercise 3 benchmark and compare the models available locally."""
+"""Run the PS3 benchmark or the PS4 Ex1 monotonicity analysis."""
 
 import argparse
 import json
@@ -76,7 +76,7 @@ def main(argv=None):
         "action",
         nargs="?",
         default="benchmark",
-        choices=["check-data", "benchmark", "lightgbm", "tuned-lightgbm", "parametric", "metrics", "compare", "all"],
+        choices=["check-data", "benchmark", "lightgbm", "tuned-lightgbm", "parametric", "metrics", "compare", "all", "ps4-ex1"],
     )
     parser.add_argument("--results-dir", type=Path, default=Path("results"))
     parser.add_argument("--data", type=Path, help="Explicit local prepared Parquet cache; otherwise use the instructor loader")
@@ -106,6 +106,14 @@ def main(argv=None):
         train, test = sample_frames(frame)
         print(f"Validated {len(frame):,} policies ({len(train):,} train; {len(test):,} test)")
         return
+    # ==================== PS4 begins: Exercise 1 ====================
+    if args.action == "ps4-ex1":
+        from analyses.lgbm_monotonicity import run_monotonicity_analysis
+
+        _, _, metrics, _ = run_monotonicity_analysis(frame, args.results_dir)
+        print(json.dumps(metrics, indent=2, allow_nan=False))
+        return
+    # ===================== PS4 ends: Exercise 1 =====================
     archive_results(args.results_dir)
     args.results_dir.mkdir(parents=True, exist_ok=True)
     data_fingerprint, provenance = run_provenance(frame)

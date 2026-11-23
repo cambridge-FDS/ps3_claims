@@ -69,3 +69,33 @@ Tuned LightGBM has the lowest test deviance and the highest observed Gini, with 
 | [`results/`](results/) | Submitted metrics, figures and analysis notes |
 
 The original division of work is recorded in the [team assignments](TEAM_ASSIGNMENTS.md).
+
+## PS4 — Exercise 1: monotonicity constraints (Member E)
+
+PS4 continues in this repository. The Ex1 implementation is in [`analyses/lgbm_monotonicity.py`](analyses/lgbm_monotonicity.py); it uses the PS3 fixed `IDpol` split, `ClaimAmountCut / Exposure` target, Exposure weights and Tweedie power 1.5. Three-fold shuffled KFold model selection is confined to the training sample. Each fold fits its own one-hot preprocessing, then the implementation resolves `BonusMalus` from the transformed feature names and applies the increasing constraint `+1` to that column. All remaining transformed columns receive constraint `0`.
+
+Run after the PS3 Conda environment is installed. By default this loads the instructor's data and creates the fixed split:
+
+```bash
+python -m analyses.lgbm_monotonicity --results-dir results
+```
+
+To reuse a local prepared Parquet cache, pass `--data data/shared_final.parquet`. `python -m analyses.ps3_script ps4-ex1` is also available as an integrated entry point. The run writes:
+
+- `results/bonusmalus_weighted_claims.png` and its grouped CSV: training-only Exposure-weighted pure premium by observed `BonusMalus`.
+- `results/ps4_ex1_monotonicity_cv.json`: fold scores for constrained and unconstrained parameter candidates and each selected configuration.
+- `results/ps4_ex1_monotonicity_metrics.json`: split fingerprint, metrics, feature order, constraint vector and handoff details for A–D.
+- `results/ps4_ex1_test_predictions.csv`: test predictions aligned by `IDpol`, with `pp_t_lgbm_constrained` and `pp_t_lgbm_unconstrained`. This per-policy file is gitignored; other members can regenerate it with the command above.
+
+The comparison reports selected CV deviance, train deviance and fixed-test deviance for both models. The test values are for final comparison only and do not participate in parameter selection.
+
+### Ex1 result
+
+Both model variants selected `learning_rate=0.03` and `n_estimators=300` from the PS3 tuning grid. Lower weighted Tweedie deviance is better.
+
+| Model | Train-only CV mean | CV SD | Train | Fixed test |
+| --- | ---: | ---: | ---: | ---: |
+| Unconstrained LightGBM | 73.8312 | 2.4743 | 66.4130 | 74.2916 |
+| Increasing BonusMalus constraint | 74.0892 | 2.3599 | 67.3737 | 74.4695 |
+
+The constraint slightly worsened mean CV deviance by 0.2581 and fixed-test deviance by 0.1778, while narrowing the train–test gap from 7.8787 to 7.0957. Thus it imposes the required monotonic direction with a modest score tradeoff and a smaller apparent generalisation gap. The plot is descriptive; its 10-point bands have unequal support, especially in the high-BonusMalus tail. Policy counts and total Exposure are in the companion CSV.
