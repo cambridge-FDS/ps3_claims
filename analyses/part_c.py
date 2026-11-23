@@ -54,6 +54,16 @@ def prepare_data(frame=None):
     return frame.assign(**{TARGET: pure_premium})
 
 
+def prepare_model_data(frame=None):
+    """Build the canonical target and IDpol split, replacing stale cache values."""
+    data = prepare_data(frame)
+    return create_sample_column(
+        data,
+        id_columns=SPLIT["id_columns"],
+        training_frac=SPLIT["training_fraction"],
+    )
+
+
 def sample_frames(frame):
     """Consume a pre-assigned sample column and keep policy IDs on predictions."""
     if "sample" not in frame:

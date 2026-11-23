@@ -16,23 +16,16 @@ from sklearn.exceptions import ConvergenceWarning
 
 from analyses.model_comparison import save_comparison, write_metrics_csv
 from analyses.part_c import (
-    SPLIT,
-    prepare_data,
+    prepare_model_data,
     run_baseline,
     run_initial_lightgbm,
     run_tuned_lightgbm,
     sample_frames,
     write_model_metrics,
 )
-from ps3.data import create_sample_column
-
-
 def load_model_data(frame=None):
-    """Apply the instructor's preparation and Member A's agreed policy split."""
-    data = prepare_data(frame)
-    return create_sample_column(
-        data, id_columns=SPLIT["id_columns"], training_frac=SPLIT["training_fraction"]
-    )
+    """Apply the canonical target and Member A's agreed policy split."""
+    return prepare_model_data(frame)
 
 
 def save_run(metrics, test_predictions, results_dir):

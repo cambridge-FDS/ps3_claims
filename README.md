@@ -80,7 +80,7 @@ Run after the PS3 Conda environment is installed. By default this loads the inst
 python -m analyses.lgbm_monotonicity --results-dir results
 ```
 
-To reuse a local prepared Parquet cache, pass `--data data/shared_final.parquet`. `python -m analyses.ps3_script ps4-ex1` is also available as an integrated entry point. The run writes:
+To reuse a local prepared Parquet cache, pass `--data data/shared_final.parquet`. Both entry points recalculate `PurePremium` from `ClaimAmountCut / Exposure` and recreate the `IDpol` split, so older caches with stale target or split columns still use the canonical prepared data. The integrated entry point is `python -m analyses.ps3_script ps4-ex1`; it can also take `--data data/shared_final.parquet`. The run writes:
 
 - `results/bonusmalus_weighted_claims.png` and its grouped CSV: training-only Exposure-weighted pure premium by observed `BonusMalus`.
 - `results/ps4_ex1_monotonicity_cv.json`: fold scores for constrained and unconstrained parameter candidates and each selected configuration.
@@ -99,3 +99,5 @@ Both model variants selected `learning_rate=0.03` and `n_estimators=300` from th
 | Increasing BonusMalus constraint | 74.0892 | 2.3599 | 67.3737 | 74.4695 |
 
 The constraint slightly worsened mean CV deviance by 0.2581 and fixed-test deviance by 0.1778, while narrowing the train–test gap from 7.8787 to 7.0957. Thus it imposes the required monotonic direction with a modest score tradeoff and a smaller apparent generalisation gap. The plot is descriptive; its 10-point bands have unequal support, especially in the high-BonusMalus tail. Policy counts and total Exposure are in the companion CSV.
+
+Without the monotonicity constraint, a fitted LightGBM can predict a lower pure premium for a higher `BonusMalus` when the other predictors are held fixed. Tree split choices, interactions with other predictors, and sampling noise can create these local reversals, particularly where training exposure is sparse. The increasing constraint rules out decreases along `BonusMalus` while the other features remain fixed.

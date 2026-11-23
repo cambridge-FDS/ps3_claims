@@ -33,11 +33,10 @@ from analyses.lgbm_baseline import (
 from analyses.lgbm_tuning import (
     CV_RANDOM_STATE,
     CV_SPLITS,
-    ID_COLUMNS,
     PARAMETER_GRID,
-    TRAINING_FRACTION,
 )
-from ps3.data import create_sample_column, load_transform
+from analyses.part_c import SPLIT, prepare_model_data
+from ps3.data import load_transform
 
 
 FEATURES = CATEGORICAL_FEATURES + NUMERIC_FEATURES
@@ -107,17 +106,9 @@ def _deviance(y: np.ndarray, prediction: np.ndarray, weights: np.ndarray) -> flo
 
 
 def _prepare(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    data = df.copy()
-    if "sample" not in data:
-        data = create_sample_column(
-            data, id_columns=ID_COLUMNS, training_frac=TRAINING_FRACTION
-        )
+    data = prepare_model_data(df)
     if not data["sample"].isin(["train", "test"]).all():
         raise ValueError("sample must contain only 'train' and 'test'")
-    if TARGET not in data:
-        if (data[WEIGHT] <= 0).any():
-            raise ValueError("Exposure must be positive to calculate PurePremium")
-        data[TARGET] = data["ClaimAmountCut"] / data[WEIGHT]
     missing = sorted(set(FEATURES + [TARGET, WEIGHT]).difference(data.columns))
     if missing:
         raise KeyError(f"Missing required columns: {missing}")
@@ -125,13 +116,7 @@ def _prepare(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         raise ValueError("Exposure must be positive and PurePremium nonnegative")
     if not data[FEATURES + [TARGET, WEIGHT]].notna().all().all():
         raise ValueError("Model features, PurePremium and Exposure must not be missing")
-    split = {
-        "method": "deterministic ID hash bucketing",
-        "id_columns": [ID_COLUMNS],
-        "training_fraction": TRAINING_FRACTION,
-        "sample_column": "sample",
-    }
-    return data, split
+    return data, {**SPLIT, "id_columns": list(SPLIT["id_columns"])}
 
 
 def _cv_scores(
