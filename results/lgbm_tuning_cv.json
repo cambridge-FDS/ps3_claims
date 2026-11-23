@@ -1,0 +1,112 @@
+{
+  "model": "LightGBM Tweedie tuning",
+  "split": {
+    "method": "deterministic ID hash bucketing",
+    "id_columns": [
+      "IDpol"
+    ],
+    "training_fraction": 0.8,
+    "sample_column": "sample"
+  },
+  "split_fingerprint": "48634e41e66f74a0a62ae7e54de1da7299d8abf8e78ce5f9ca941ce055e0e881",
+  "cv": {
+    "method": "KFold",
+    "n_splits": 3,
+    "shuffle": true,
+    "random_state": 42,
+    "scope": "fixed training sample only",
+    "scoring": "Exposure-weighted mean Tweedie deviance, power 1.5",
+    "preprocessing": "Fitted independently within each training fold"
+  },
+  "candidate_results": [
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "n_estimators": 300
+      },
+      "fold_weighted_tweedie_deviance": [
+        76.41133196874381,
+        73.60359950315706,
+        71.47854719825443
+      ],
+      "mean_weighted_tweedie_deviance": 73.83115955671843,
+      "std_weighted_tweedie_deviance": 2.4742532371355255
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "n_estimators": 500
+      },
+      "fold_weighted_tweedie_deviance": [
+        77.35791946632098,
+        74.15897917656062,
+        71.75592413652336
+      ],
+      "mean_weighted_tweedie_deviance": 74.42427425980165,
+      "std_weighted_tweedie_deviance": 2.810404602483863
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.05,
+        "n_estimators": 300
+      },
+      "fold_weighted_tweedie_deviance": [
+        77.37948152652098,
+        74.10042554466814,
+        72.0484120754159
+      ],
+      "mean_weighted_tweedie_deviance": 74.50943971553501,
+      "std_weighted_tweedie_deviance": 2.688967239871822
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.05,
+        "n_estimators": 500
+      },
+      "fold_weighted_tweedie_deviance": [
+        78.54827783936167,
+        75.44452619533854,
+        73.10672484247843
+      ],
+      "mean_weighted_tweedie_deviance": 75.69984295905955,
+      "std_weighted_tweedie_deviance": 2.7297462779258415
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.08,
+        "n_estimators": 300
+      },
+      "fold_weighted_tweedie_deviance": [
+        78.53058315559751,
+        75.22143155065315,
+        72.60545626281994
+      ],
+      "mean_weighted_tweedie_deviance": 75.45249032302354,
+      "std_weighted_tweedie_deviance": 2.9693136060537584
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.08,
+        "n_estimators": 500
+      },
+      "fold_weighted_tweedie_deviance": [
+        80.28432269317378,
+        77.4427795282076,
+        74.92170147204394
+      ],
+      "mean_weighted_tweedie_deviance": 77.54960123114176,
+      "std_weighted_tweedie_deviance": 2.6829060265859757
+    }
+  ],
+  "baseline_cv_fold_deviances": [
+    77.37948152652098,
+    74.10042554466814,
+    72.0484120754159
+  ],
+  "baseline_cv_mean_deviance": 74.50943971553501,
+  "selected_parameters": {
+    "learning_rate": 0.03,
+    "n_estimators": 300
+  },
+  "selection_rule": "Lowest mean validation weighted Tweedie deviance"
+}

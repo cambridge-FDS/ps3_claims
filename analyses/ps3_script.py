@@ -1,252 +1,156 @@
-# %%
-import matplotlib.pyplot as plt
-import numpy as np
+"""Run the PS3 benchmark or the PS4 Ex1 monotonicity analysis."""
+
+import argparse
+import json
+import hashlib
+import shutil
+import socket
+import subprocess
+import warnings
+from datetime import datetime, timezone
+from importlib.metadata import version
+from pathlib import Path
+
 import pandas as pd
-from dask_ml.preprocessing import Categorizer
-from glum import GeneralizedLinearRegressor, TweedieDistribution
-from lightgbm import LGBMRegressor
-from sklearn.compose import ColumnTransformer
-from sklearn.metrics import auc
-from sklearn.model_selection import GridSearchCV
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, SplineTransformer, StandardScaler
+from sklearn.exceptions import ConvergenceWarning
 
-from ps3.data import create_sample_split, load_transform
-
-# %%
-# load data
-df = load_transform()
-
-# %%
-# Train benchmark tweedie model. This is entirely based on the glum tutorial.
-weight = df["Exposure"].values
-df["PurePremium"] = df["ClaimAmountCut"] / df["Exposure"]
-y = df["PurePremium"]
-# TODO: Why do you think, we divide by exposure here to arrive at our outcome variable?
+from analyses.model_comparison import save_comparison, write_metrics_csv
+from analyses.part_c import (
+    SPLIT,
+    prepare_data,
+    run_baseline,
+    run_initial_lightgbm,
+    run_tuned_lightgbm,
+    sample_frames,
+    write_model_metrics,
+)
+from ps3.data import create_sample_column
 
 
-# TODO: use your create_sample_split function here
-# df = create_sample_split(...)
-train = np.where(df["sample"] == "train")
-test = np.where(df["sample"] == "test")
-df_train = df.iloc[train].copy()
-df_test = df.iloc[test].copy()
-
-categoricals = ["VehBrand", "VehGas", "Region", "Area", "DrivAge", "VehAge", "VehPower"]
-
-predictors = categoricals + ["BonusMalus", "Density"]
-glm_categorizer = Categorizer(columns=categoricals)
-
-X_train_t = glm_categorizer.fit_transform(df[predictors].iloc[train])
-X_test_t = glm_categorizer.transform(df[predictors].iloc[test])
-y_train_t, y_test_t = y.iloc[train], y.iloc[test]
-w_train_t, w_test_t = weight[train], weight[test]
-
-TweedieDist = TweedieDistribution(1.5)
-t_glm1 = GeneralizedLinearRegressor(family=TweedieDist, l1_ratio=1, fit_intercept=True)
-t_glm1.fit(X_train_t, y_train_t, sample_weight=w_train_t)
-
-
-pd.DataFrame(
-    {"coefficient": np.concatenate(([t_glm1.intercept_], t_glm1.coef_))},
-    index=["intercept"] + t_glm1.feature_names_,
-).T
-
-df_test["pp_t_glm1"] = t_glm1.predict(X_test_t)
-df_train["pp_t_glm1"] = t_glm1.predict(X_train_t)
-
-print(
-    "training loss t_glm1:  {}".format(
-        TweedieDist.deviance(y_train_t, df_train["pp_t_glm1"], sample_weight=w_train_t)
-        / np.sum(w_train_t)
+def load_model_data(frame=None):
+    """Apply the instructor's preparation and Member A's agreed policy split."""
+    data = prepare_data(frame)
+    return create_sample_column(
+        data, id_columns=SPLIT["id_columns"], training_frac=SPLIT["training_fraction"]
     )
-)
 
-print(
-    "testing loss t_glm1:  {}".format(
-        TweedieDist.deviance(y_test_t, df_test["pp_t_glm1"], sample_weight=w_test_t)
-        / np.sum(w_test_t)
+
+def save_run(metrics, test_predictions, results_dir):
+    """Save the audit metrics and a gitignored test-predictions file."""
+    path = write_model_metrics(metrics, results_dir / "evaluated")
+    test_predictions.rename("PurePremiumPredicted").rename_axis("IDpol").to_csv(
+        results_dir / f"{metrics['model']}_predictions.csv"
     )
-)
+    print(json.dumps(metrics, indent=2, allow_nan=False))
+    print(f"Saved {path}")
 
-print(
-    "Total claim amount on test set, observed = {}, predicted = {}".format(
-        df["ClaimAmountCut"].values[test].sum(),
-        np.sum(df["Exposure"].values[test] * t_glm1.predict(X_test_t)),
+
+def run_provenance(frame):
+    """Fingerprint the exact prepared values and executed modelling sources."""
+    ordered = frame.sort_values("IDpol")
+    digest = hashlib.sha256()
+    digest.update(str(list(zip(ordered.columns, ordered.dtypes.astype(str)))).encode())
+    digest.update(pd.util.hash_pandas_object(ordered, index=False).values.tobytes())
+    sources = [*Path("analyses").glob("*.py"), *Path("ps3").rglob("*.py")]
+    return digest.hexdigest(), {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "git_head_at_run": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "source_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(sources)},
+        "versions": {name: version(name) for name in ["glum", "dask-ml", "lightgbm", "numpy", "pandas", "scikit-learn"]},
+    }
+
+
+def archive_results(results_dir):
+    """Keep prior review evidence locally before a command replaces outputs."""
+    if not results_dir.exists():
+        return
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    destination = Path("data/run_backups") / stamp
+    shutil.copytree(results_dir, destination)
+    print(f"Archived prior outputs to {destination}")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "action",
+        nargs="?",
+        default="benchmark",
+        choices=["check-data", "benchmark", "lightgbm", "tuned-lightgbm", "parametric", "metrics", "compare", "all", "ps4-ex1"],
     )
-)
-# %%
-# TODO: Let's add splines for BonusMalus and Density and use a Pipeline.
-# Steps: 
-# 1. Define a Pipeline which chains a StandardScaler and SplineTransformer. 
-#    Choose knots="quantile" for the SplineTransformer and make sure, we 
-#    are only including one intercept in the final GLM. 
-# 2. Put the transforms together into a ColumnTransformer. Here we use OneHotEncoder for the categoricals.
-# 3. Chain the transforms together with the GLM in a Pipeline.
+    parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--data", type=Path, help="Explicit local prepared Parquet cache; otherwise use the instructor loader")
+    parser.add_argument("--save-data", type=Path, help="Save the shared prepared frame locally for independent rescoring")
+    parser.add_argument("--network-timeout", type=float, default=300., help="Remote socket read timeout in seconds")
+    args = parser.parse_args(argv)
 
-# Let's put together a pipeline
-numeric_cols = ["BonusMalus", "Density"]
-preprocessor = ColumnTransformer(
-    transformers=[
-        # TODO: Add numeric transforms here
-        ("cat", OneHotEncoder(sparse_output=False, drop="first"), categoricals),
-    ]
-)
-preprocessor.set_output(transform="pandas")
-model_pipeline = Pipeline(
-    # TODO: Define pipeline steps here
-)
+    if args.action == "metrics":
+        archive_results(args.results_dir)
+        print(f"Saved {write_metrics_csv(args.results_dir)}")
+        return
 
-# let's have a look at the pipeline
-model_pipeline
+    if args.network_timeout <= 0:
+        parser.error("--network-timeout must be positive")
+    previous_timeout = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(args.network_timeout)
+        frame = load_model_data(pd.read_parquet(args.data) if args.data else None)
+    finally:
+        socket.setdefaulttimeout(previous_timeout)
+    if args.save_data:
+        args.save_data.parent.mkdir(parents=True, exist_ok=True)
+        if args.save_data.exists():
+            raise FileExistsError("Choose a new cache path to preserve the existing data cache")
+        frame.to_parquet(args.save_data, index=False)
+    if args.action == "check-data":
+        train, test = sample_frames(frame)
+        print(f"Validated {len(frame):,} policies ({len(train):,} train; {len(test):,} test)")
+        return
+    # ==================== PS4 begins: Exercise 1 ====================
+    if args.action == "ps4-ex1":
+        from analyses.lgbm_monotonicity import run_monotonicity_analysis
 
-# let's check that the transforms worked
-model_pipeline[:-1].fit_transform(df_train)
+        _, _, metrics, _ = run_monotonicity_analysis(frame, args.results_dir)
+        print(json.dumps(metrics, indent=2, allow_nan=False))
+        return
+    # ===================== PS4 ends: Exercise 1 =====================
+    archive_results(args.results_dir)
+    args.results_dir.mkdir(parents=True, exist_ok=True)
+    data_fingerprint, provenance = run_provenance(frame)
+    def save_verified(metrics, predictions):
+        metrics.update(data_fingerprint=data_fingerprint, run_provenance=provenance,
+                       verification_status="locally_trained")
+        save_run(metrics, predictions, args.results_dir)
 
-model_pipeline.fit(df_train, y_train_t, estimate__sample_weight=w_train_t)
-
-pd.DataFrame(
-    {
-        "coefficient": np.concatenate(
-            ([model_pipeline[-1].intercept_], model_pipeline[-1].coef_)
-        )
-    },
-    index=["intercept"] + model_pipeline[-1].feature_names_,
-).T
-
-df_test["pp_t_glm2"] = model_pipeline.predict(df_test)
-df_train["pp_t_glm2"] = model_pipeline.predict(df_train)
-
-print(
-    "training loss t_glm2:  {}".format(
-        TweedieDist.deviance(y_train_t, df_train["pp_t_glm2"], sample_weight=w_train_t)
-        / np.sum(w_train_t)
-    )
-)
-
-print(
-    "testing loss t_glm2:  {}".format(
-        TweedieDist.deviance(y_test_t, df_test["pp_t_glm2"], sample_weight=w_test_t)
-        / np.sum(w_test_t)
-    )
-)
-
-print(
-    "Total claim amount on test set, observed = {}, predicted = {}".format(
-        df["ClaimAmountCut"].values[test].sum(),
-        np.sum(df["Exposure"].values[test] * df_test["pp_t_glm2"]),
-    )
-)
-
-# %%
-# TODO: Let's use a GBM instead as an estimator.
-# Steps
-# 1: Define the modelling pipeline. Tip: This can simply be a LGBMRegressor based on X_train_t from before.
-# 2. Make sure we are choosing the correct objective for our estimator.
-
-model_pipeline.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
-df_test["pp_t_lgbm"] = model_pipeline.predict(X_test_t)
-df_train["pp_t_lgbm"] = model_pipeline.predict(X_train_t)
-print(
-    "training loss t_lgbm:  {}".format(
-        TweedieDist.deviance(y_train_t, df_train["pp_t_lgbm"], sample_weight=w_train_t)
-        / np.sum(w_train_t)
-    )
-)
-
-print(
-    "testing loss t_lgbm:  {}".format(
-        TweedieDist.deviance(y_test_t, df_test["pp_t_lgbm"], sample_weight=w_test_t)
-        / np.sum(w_test_t)
-    )
-)
-
-# %%
-# TODO: Let's tune the LGBM to reduce overfitting.
-# Steps:
-# 1. Define a `GridSearchCV` object with our lgbm pipeline/estimator. Tip: Parameters for a specific step of the pipeline
-# can be passed by <step_name>__param. 
-
-# Note: Typically we tune many more parameters and larger grids,
-# but to save compute time here, we focus on getting the learning rate
-# and the number of estimators somewhat aligned -> tune learning_rate and n_estimators
-cv = GridSearchCV(
-
-)
-cv.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
-
-df_test["pp_t_lgbm"] = cv.best_estimator_.predict(X_test_t)
-df_train["pp_t_lgbm"] = cv.best_estimator_.predict(X_train_t)
-
-print(
-    "training loss t_lgbm:  {}".format(
-        TweedieDist.deviance(y_train_t, df_train["pp_t_lgbm"], sample_weight=w_train_t)
-        / np.sum(w_train_t)
-    )
-)
-
-print(
-    "testing loss t_lgbm:  {}".format(
-        TweedieDist.deviance(y_test_t, df_test["pp_t_lgbm"], sample_weight=w_test_t)
-        / np.sum(w_test_t)
-    )
-)
-
-print(
-    "Total claim amount on test set, observed = {}, predicted = {}".format(
-        df["ClaimAmountCut"].values[test].sum(),
-        np.sum(df["Exposure"].values[test] * df_test["pp_t_lgbm"]),
-    )
-)
-# %%
-# Let's compare the sorting of the pure premium predictions
+    if args.action in {"benchmark", "all"}:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConvergenceWarning)
+            metrics, coefficients, _, predictions = run_baseline(frame)
+        print(coefficients.to_string())
+        coefficients.rename_axis("feature").to_csv(args.results_dir / "tweedie_glm_coefficients.csv")
+        save_verified(metrics, predictions)
+    if args.action in {"lightgbm", "all"}:
+        metrics, predictions = run_initial_lightgbm(frame)
+        save_verified(metrics, predictions)
+    if args.action in {"parametric", "all"}:
+        from analyses.parametric_glm import run_parametric_glm
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConvergenceWarning)
+            metrics, _, predictions = run_parametric_glm(frame)
+        metrics["evaluation_caveat"] = "D's specification was chosen after test-tail diagnostics; this test score is exploratory, not untouched validation."
+        save_verified(metrics, predictions)
+    if args.action in {"tuned-lightgbm", "all"}:
+        audit_dir = Path("data/tuning_runs") / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        metrics, predictions = run_tuned_lightgbm(frame, audit_dir)
+        save_verified(metrics, predictions)
+    if args.action in {"compare", "all"}:
+        train, test = sample_frames(frame)
+        from analyses.model_comparison import read_model_metrics
+        existing = read_model_metrics(args.results_dir)
+        if "data_fingerprint" in existing and any(existing["data_fingerprint"].dropna() != data_fingerprint):
+            raise ValueError("Saved metrics do not match this prepared dataset")
+        save_comparison(train, test, args.results_dir)
 
 
-# Source: https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html
-def lorenz_curve(y_true, y_pred, exposure):
-    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
-    exposure = np.asarray(exposure)
-
-    # order samples by increasing predicted risk:
-    ranking = np.argsort(y_pred)
-    ranked_exposure = exposure[ranking]
-    ranked_pure_premium = y_true[ranking]
-    cumulated_claim_amount = np.cumsum(ranked_pure_premium * ranked_exposure)
-    cumulated_claim_amount /= cumulated_claim_amount[-1]
-    cumulated_samples = np.linspace(0, 1, len(cumulated_claim_amount))
-    return cumulated_samples, cumulated_claim_amount
-
-
-fig, ax = plt.subplots(figsize=(8, 8))
-
-for label, y_pred in [
-    ("LGBM", df_test["pp_t_lgbm"]),
-    ("GLM Benchmark", df_test["pp_t_glm1"]),
-    ("GLM Splines", df_test["pp_t_glm2"]),
-]:
-    ordered_samples, cum_claims = lorenz_curve(
-        df_test["PurePremium"], y_pred, df_test["Exposure"]
-    )
-    gini = 1 - 2 * auc(ordered_samples, cum_claims)
-    label += f" (Gini index: {gini: .3f})"
-    ax.plot(ordered_samples, cum_claims, linestyle="-", label=label)
-
-# Oracle model: y_pred == y_test
-ordered_samples, cum_claims = lorenz_curve(
-    df_test["PurePremium"], df_test["PurePremium"], df_test["Exposure"]
-)
-gini = 1 - 2 * auc(ordered_samples, cum_claims)
-label = f"Oracle (Gini index: {gini: .3f})"
-ax.plot(ordered_samples, cum_claims, linestyle="-.", color="gray", label=label)
-
-# Random baseline
-ax.plot([0, 1], [0, 1], linestyle="--", color="black", label="Random baseline")
-ax.set(
-    title="Lorenz Curves",
-    xlabel="Fraction of policyholders\n(ordered by model from safest to riskiest)",
-    ylabel="Fraction of total claim amount",
-)
-ax.legend(loc="upper left")
-plt.plot()
-
-# %%
+if __name__ == "__main__":
+    main()
