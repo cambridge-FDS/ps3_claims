@@ -1,4 +1,5 @@
 # %%
+import lightgbm as lgb
 import matplotlib.pyplot as plt
 import numpy as np
 import optuna
@@ -298,6 +299,8 @@ plt.plot()
 
 ######## PS4 #############
 # %%
+# Exercise 1
+
 # Observed average claims per BonusMalus group, weighted by exposure.
 plot_weighted_avg_claims(
     df,
@@ -373,10 +376,15 @@ study = optuna.create_study(
     direction="minimize", sampler=optuna.samplers.TPESampler(seed=0)
 )
 study.optimize(objective, n_trials=20)
+# The tuned hyperparameters are saved in `study.best_params`
 print("best parameters:", study.best_params)
 
 # Refit the best configuration on the full training data
+# The LGBM with the tuned hyperparameters is built here: `**study.best_params`
+# unpacks the dictionary into make_constrained_lgbm. It is stored in
+# `constrained_lgbm`, and fitted on the next line.
 constrained_lgbm = make_constrained_lgbm(**study.best_params)
+# This is the fit of the tuned, constrained LGBM on the full training data.
 constrained_lgbm.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
 
 df_test["pp_t_lgbm_constrained"] = constrained_lgbm.predict(X_test_t)
@@ -406,3 +414,48 @@ print(
         np.sum(df["Exposure"].values[test] * df_test["pp_t_lgbm_constrained"]),
     )
 )
+
+# %%
+# Exercise 2
+#
+# What is done here:
+# 1. The best hyperparameters from the Optuna cross-validation (`study.best_params`)
+#    are used again, so this is the same tuned, constrained model as above.
+# 2. The model is re-fitted on the training data. This time the train and test sets
+#    are also passed as `eval_set`, a list of (X, y) tuples. After every boosting
+#    round (every added tree), LightGBM records the loss (how far predictions are from the actual values)
+# on each of them.
+#    (Newer LightGBM versions warn that `eval_set` is deprecated in favour of
+#    `eval_X` and `eval_y`; `eval_set` still works.)
+# 3. `eval_sample_weight` gives the exposure weights for the two eval sets, so the
+#    recorded losses are exposure-weighted, like the training itself.
+# 4. The test set is only monitored here. It is not used to train the model or to
+#    choose any setting (there is no early stopping), so the model is unchanged.
+constrained_lgbm = make_constrained_lgbm(**study.best_params)
+constrained_lgbm.fit(
+    X_train_t,
+    y_train_t,
+    estimate__sample_weight=w_train_t,
+    estimate__eval_set=[(X_train_t, y_train_t), (X_test_t, y_test_t)],
+    estimate__eval_sample_weight=[w_train_t, w_test_t],
+    estimate__eval_names=["train", "test"],
+)
+
+# The loss after each boosting round is stored on the fitted LGBM (the "estimate"
+# step of the pipeline): {"train": {metric: [...]}, "test": {metric: [...]}}.
+evals_result = constrained_lgbm.named_steps["estimate"].evals_result_
+metric = next(iter(evals_result["train"]))  # LightGBM's Tweedie metric
+print("recorded metric:", metric)
+
+# Learning curves: loss against the number of trees for the train and test set,
+# drawn with LightGBM's own `lgb.plot_metric`. It needs the fitted LGBM and not the
+# pipeline, so we pass the last step of the pipeline (`constrained_lgbm[-1]`).
+# A test curve that flattens or rises while the train curve keeps falling signals
+# overfitting.
+ax = lgb.plot_metric(constrained_lgbm[-1], title="Learning curves: constrained LGBM")
+plt.show()
+
+## the test loss plateaus without rising, so the model is close to optimally tuned.
+# The widening train–test gap and the flat test curve after about 100 iterations shows
+# diminishing returns in the number of trees.
+#  A simpler model with fewer trees or more regularisation would do about as well
