@@ -1,18 +1,22 @@
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 import pandas as pd
 from dask_ml.preprocessing import Categorizer
 from glum import GeneralizedLinearRegressor, TweedieDistribution
 from lightgbm import LGBMRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import auc
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, SplineTransformer, StandardScaler
 
-from ps3.data import create_sample_split, load_transform
+from ps3.data._load_transform import load_transform
+from ps3.data._sample_split import create_sample_split
+from ps3.data.plots import plot_weighted_avg_claims
 
+# %%
 # load data
 df = load_transform()
 
@@ -29,19 +33,23 @@ y = df["PurePremium"]
 df = create_sample_split(df, "IDpol", 0.8)
 train = np.where(df["sample"] == "train")
 test = np.where(df["sample"] == "test")
+# Create train and test dataframes
 df_train = df.iloc[train].copy()
 df_test = df.iloc[test].copy()
 
 categoricals = ["VehBrand", "VehGas", "Region", "Area", "DrivAge", "VehAge", "VehPower"]
 
 predictors = categoricals + ["BonusMalus", "Density"]
+# Function to categorize the categorical variables. This is needed for the GLM model.
 glm_categorizer = Categorizer(columns=categoricals)
 
+# Split the data into train and test sets, and apply the categorizer to the categorical variables.
 X_train_t = glm_categorizer.fit_transform(df[predictors].iloc[train])
 X_test_t = glm_categorizer.transform(df[predictors].iloc[test])
 y_train_t, y_test_t = y.iloc[train], y.iloc[test]
 w_train_t, w_test_t = weight[train], weight[test]
 
+# Define the GLM model with a Tweedie distribution and fit it to the training data.
 TweedieDist = TweedieDistribution(1.5)
 t_glm1 = GeneralizedLinearRegressor(family=TweedieDist, l1_ratio=1, fit_intercept=True)
 t_glm1.fit(X_train_t, y_train_t, sample_weight=w_train_t)
@@ -51,6 +59,8 @@ pd.DataFrame(
     index=["intercept"] + t_glm1.feature_names_,
 ).T
 
+# Use fitted model to predict on the test set
+# and calculate the deviance loss for both training and testing sets.
 df_test["pp_t_glm1"] = t_glm1.predict(X_test_t)
 df_train["pp_t_glm1"] = t_glm1.predict(X_train_t)
 
@@ -86,6 +96,7 @@ print(
 # Let's put together a pipeline
 numeric_cols = ["BonusMalus", "Density"]
 
+# Column transformer for numeric columns
 numeric_transformer = Pipeline(
     steps=[
         ("scaler", StandardScaler()),
@@ -98,6 +109,7 @@ numeric_transformer = Pipeline(
     ]
 )
 
+# Feature preprocessing pipeline
 preprocessor = ColumnTransformer(
     transformers=[
         ("num", numeric_transformer, numeric_cols),
@@ -114,6 +126,7 @@ model_pipeline
 # let's check that the transforms worked
 model_pipeline[:-1].fit_transform(df_train)
 
+# Fit pipeline to training data
 model_pipeline.fit(df_train, y_train_t, estimate__sample_weight=w_train_t)
 
 pd.DataFrame(
@@ -154,6 +167,8 @@ print(
 # Steps
 # 1: Define the modelling pipeline. Tip: This can simply be a LGBMRegressor based on X_train_t from before.
 # 2. Make sure we are choosing the correct objective for our estimator.
+
+# Model pipeline with LGBMRegressor
 model_pipeline = Pipeline(
     steps=[
         (
@@ -163,6 +178,7 @@ model_pipeline = Pipeline(
     ]
 )
 
+# Fit on the data and predict on the test set
 model_pipeline.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
 df_test["pp_t_lgbm"] = model_pipeline.predict(X_test_t)
 df_train["pp_t_lgbm"] = model_pipeline.predict(X_train_t)
@@ -189,6 +205,12 @@ print(
 # Note: Typically we tune many more parameters and larger grids,
 # but to save compute time here, we focus on getting the learning rate
 # and the number of estimators somewhat aligned -> tune learning_rate and n_estimators
+
+## GridSearchCV uses the earlier LGBM pipeline as a template, makes copies of it
+# and fits each copy with a different combination of the hyperparameters specified in the param_grid.
+# It then evaluates the performance of each model using cross-validation
+# and selects the best combination of hyperparameters based on the specified scoring metric.
+
 cv = GridSearchCV(
     model_pipeline,
     param_grid={
@@ -274,4 +296,113 @@ ax.set(
 ax.legend(loc="upper left")
 plt.plot()
 
+######## PS4 #############
 # %%
+# Observed average claims per BonusMalus group, weighted by exposure.
+plot_weighted_avg_claims(
+    df,
+    group_col="BonusMalus",
+    claims_col="PurePremium",
+    weight_col="Exposure",
+)
+plt.show()
+## We can see that the average claims are increasing with increasing BonusMalus, which is what we would expect.
+## Hence we need to impose a monotonicity constraint on the BonusMalus variable in our model to ensure
+## that the predicted pure premium is increasing with increasing BonusMalus.
+
+
+# %%
+# New LGBM model pipeline with monotonicity constraint on BonusMalus
+
+# One entry per feature, in the column order of X_train_t:
+# 1 = increasing, 0 = unconstrained.
+monotone_constraints = [1 if col == "BonusMalus" else 0 for col in X_train_t.columns]
+
+# Hyperparameters are tuned with 3-fold cross-validation on the training data.
+# The same folds are used for every trial, and the test set is not used for tuning.
+cv_folds = list(KFold(n_splits=3, shuffle=True, random_state=0).split(X_train_t))
+
+
+def make_constrained_lgbm(**params):
+    """Tweedie LGBM pipeline with an increasing constraint on BonusMalus."""
+    return Pipeline(
+        steps=[
+            (
+                "estimate",
+                LGBMRegressor(
+                    objective="tweedie",
+                    tweedie_variance_power=1.5,
+                    monotone_constraints=monotone_constraints,
+                    verbose=-1,
+                    **params,
+                ),
+            )
+        ]
+    )
+
+
+def objective(trial):
+    """Cross-validated Tweedie deviance per unit of exposure (lower is better)."""
+    params = {
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+        "n_estimators": trial.suggest_int("n_estimators", 50, 400),
+        "num_leaves": trial.suggest_int("num_leaves", 8, 64),
+        "min_child_samples": trial.suggest_int("min_child_samples", 20, 500, log=True),
+    }
+    fold_scores = []
+    for fit_idx, val_idx in cv_folds:
+        candidate = make_constrained_lgbm(**params)
+        candidate.fit(
+            X_train_t.iloc[fit_idx],
+            y_train_t.iloc[fit_idx],
+            estimate__sample_weight=w_train_t[fit_idx],
+        )
+        # Exposure-weighted deviance on the held-out fold, per unit of exposure
+        fold_scores.append(
+            TweedieDist.deviance(
+                y_train_t.iloc[val_idx],
+                candidate.predict(X_train_t.iloc[val_idx]),
+                sample_weight=w_train_t[val_idx],
+            )
+            / np.sum(w_train_t[val_idx])
+        )
+    return np.mean(fold_scores)
+
+
+study = optuna.create_study(
+    direction="minimize", sampler=optuna.samplers.TPESampler(seed=0)
+)
+study.optimize(objective, n_trials=20)
+print("best parameters:", study.best_params)
+
+# Refit the best configuration on the full training data
+constrained_lgbm = make_constrained_lgbm(**study.best_params)
+constrained_lgbm.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
+
+df_test["pp_t_lgbm_constrained"] = constrained_lgbm.predict(X_test_t)
+df_train["pp_t_lgbm_constrained"] = constrained_lgbm.predict(X_train_t)
+
+print(
+    "training loss t_lgbm_constrained:  {}".format(
+        TweedieDist.deviance(
+            y_train_t, df_train["pp_t_lgbm_constrained"], sample_weight=w_train_t
+        )
+        / np.sum(w_train_t)
+    )
+)
+
+print(
+    "testing loss t_lgbm_constrained:  {}".format(
+        TweedieDist.deviance(
+            y_test_t, df_test["pp_t_lgbm_constrained"], sample_weight=w_test_t
+        )
+        / np.sum(w_test_t)
+    )
+)
+
+print(
+    "Total claim amount on test set, observed = {}, predicted = {}".format(
+        df["ClaimAmountCut"].values[test].sum(),
+        np.sum(df["Exposure"].values[test] * df_test["pp_t_lgbm_constrained"]),
+    )
+)
