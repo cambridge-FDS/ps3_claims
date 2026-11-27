@@ -4,8 +4,7 @@ import pandas as pd
 
 # TODO: Write a function which creates a sample split based in some id_column and training_frac.
 # Optional: If the dtype of id_column is a string, we can use hashlib to get an integer representation.
-def create_sample_split(df, id_column, training_frac=0.8):
-    """Create sample split based on ID column.
+"""Create sample split based on ID column.
 
     Parameters
     ----------
@@ -20,7 +19,10 @@ def create_sample_split(df, id_column, training_frac=0.8):
     -------
     pd.DataFrame
         Training data with sample column containing train/test split based on IDs.
-    """
+"""
+
+
+""" 2 methods: 1 keep the original order 2. Bernoulli 3, fix the seed and threshold uniform draw"""
 
 def create_sample_split(
     df: pd.DataFrame,
