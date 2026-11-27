@@ -6,7 +6,7 @@ from dask_ml.preprocessing import Categorizer
 from glum import GeneralizedLinearRegressor, TweedieDistribution
 from lightgbm import LGBMRegressor
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import auc
+from sklearn.metrics import auc, make_scorer, mean_tweedie_deviance
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, SplineTransformer, StandardScaler
@@ -32,6 +32,36 @@ test = np.where(df["sample"] == "test")
 df_train = df.iloc[train].copy()
 df_test = df.iloc[test].copy()
 
+# %%
+# Exposure-weighted average claims per BonusMalus group (training data only).
+# Weighted average = sum(ClaimAmountCut) / sum(Exposure) per BonusMalus level,
+# equivalent to np.average(PurePremium, weights=Exposure).
+df_bm = (
+    df_train.groupby("BonusMalus")
+    .agg(claims=("ClaimAmountCut", "sum"), exposure=("Exposure", "sum"))
+    .assign(avg_pp=lambda d: d["claims"] / d["exposure"])
+    .reset_index()
+)
+
+fig, ax1 = plt.subplots(figsize=(10, 5))
+ax2 = ax1.twinx()
+ax2.bar(df_bm["BonusMalus"], df_bm["exposure"], color="lightgrey", width=1.0, label="Exposure")
+ax1.plot(df_bm["BonusMalus"], df_bm["avg_pp"], marker="o", ms=3, label="Exposure-weighted avg claims")
+ax1.set_zorder(ax2.get_zorder() + 1); ax1.patch.set_visible(False)
+ax1.set_xlabel("BonusMalus")
+ax1.set_ylabel("Avg claim amount per unit exposure")
+ax2.set_ylabel("Total exposure (years)")
+ax1.set_title("Exposure-weighted average claims by BonusMalus")
+plt.show()
+
+# TODO: What will/could happen if we do not include a monotonicity constraint?
+# The plot rises with BonusMalus where exposure is large, but is very noisy for
+# BonusMalus > ~100 where exposure is thin. An unconstrained LGBM would learn these
+# dips, so a driver with a worse claims history could get a lower predicted premium:
+# unfair and counter-intuitive pricing, overfitting to sparse cells, weaker
+# bonus-malus incentives, and a tariff that is hard to justify to regulators.
+
+# %%
 categoricals = ["VehBrand", "VehGas", "Region", "Area", "DrivAge", "VehAge", "VehPower"]
 
 predictors = categoricals + ["BonusMalus", "Density"]
@@ -108,7 +138,7 @@ model_pipeline
 # let's check that the transforms worked
 model_pipeline[:-1].fit_transform(df_train)
 
-model_pipeline.fit(df_train, y_train_t, estimate__sample_weight=w_train_t)
+model_pipeline.fit(df_train, y_train_t, estimator__sample_weight=w_train_t)
 
 pd.DataFrame(
     {
@@ -197,7 +227,7 @@ cv = GridSearchCV(
     model_pipeline,
     param_grid,
     cv=5,
-    scoring="neg_mean_deviance_score",
+    scoring=make_scorer(mean_tweedie_deviance, power=1.5),
     verbose=1,
 )
 cv.fit(X_train_t, y_train_t, estimate__sample_weight=w_train_t)
